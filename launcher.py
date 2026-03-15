@@ -333,6 +333,7 @@ class LauncherWindow(QWidget):
             detected_walls.append({"start": [grid_w, 0], "end": [grid_w, grid_h], "height": 4})
             detected_walls.append({"start": [0, grid_h], "end": [grid_w, grid_h], "height": 4})
 
+            h, w = img.shape[:2]
             if lines is not None:
                 # Convert pixel lines to grid lines
                 for line in lines:
