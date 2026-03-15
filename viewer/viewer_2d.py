@@ -35,18 +35,16 @@ class MapViewer(QMainWindow):
         self._save_timer.setInterval(1000)  # Debounce: save 1s after last change
         self._save_timer.timeout.connect(self._save_creatures)
 
-        # If encounter already has creatures (loaded from config), skip auto-creation
-        has_saved_creatures = encounter and len(encounter.creatures) > 0
+        # Merge saved creatures with launcher token config:
+        # Use launcher's counts but preserve saved creature stats (name, HP, AC, etc.)
+        saved_creatures = list(encounter.creatures) if encounter else []
+        encounter.creatures.clear()
 
-        # Central widget: the map view
+        # Central widget: the map view (always creates fresh from launcher config)
         self.view = _MapGraphicsView(map_path, width_sq, height_sq, tokens_to_add,
                                       map_scale, encounter, self,
-                                      skip_creature_creation=has_saved_creatures)
+                                      saved_creatures=saved_creatures)
         self.setCentralWidget(self.view)
-
-        # If we loaded creatures, create token visuals for them
-        if has_saved_creatures:
-            self.view._create_tokens_from_encounter(tokens_to_add)
 
         # Setup dock panels
         self._setup_panels()
@@ -401,7 +399,7 @@ class _MapGraphicsView(QGraphicsView):
     """The actual QGraphicsView that renders the map and tokens."""
 
     def __init__(self, map_path, width_sq, height_sq, tokens_to_add, map_scale=1.0,
-                 encounter=None, parent_viewer=None, skip_creature_creation=False):
+                 encounter=None, parent_viewer=None, saved_creatures=None):
         super().__init__()
         self.setBackgroundBrush(QColor(0, 0, 0))
         self._scene = QGraphicsScene()
@@ -429,9 +427,9 @@ class _MapGraphicsView(QGraphicsView):
         self.grid_items = []
         self._draw_grid()
 
-        # Add tokens (skip creature creation if we loaded from config)
-        if not skip_creature_creation:
-            self._add_tokens(tokens_to_add)
+        # Add tokens, merging with any saved creature data
+        self._saved_creatures = saved_creatures or []
+        self._add_tokens(tokens_to_add)
 
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -441,10 +439,14 @@ class _MapGraphicsView(QGraphicsView):
         QTimer.singleShot(200, self.fit_to_screen)
 
     def _add_tokens(self, tokens_to_add):
-        """Add tokens to the scene, creating new CreatureState objects."""
+        """Add tokens to the scene. Merges saved creature stats when available."""
+        # Build lookup of saved creatures by token_path for merging
+        saved_by_path = {}
+        for sc in self._saved_creatures:
+            saved_by_path.setdefault(sc.token_path, []).append(sc)
+
         col_offset = 0
         for token_data, token_cfg in tokens_to_add.items():
-            # Support both (count, scale) and (count, scale, creature_cfg) formats
             if len(token_cfg) == 3:
                 count, token_scale, creature_cfg = token_cfg
             else:
@@ -452,28 +454,36 @@ class _MapGraphicsView(QGraphicsView):
                 creature_cfg = {}
 
             pixmap = QPixmap(token_data.path)
+            saved_list = saved_by_path.get(token_data.path, [])
+
             for i in range(count):
                 creature = None
                 if self.encounter:
                     try:
                         from core.game_state import CreatureState
                         from core.name_utils import extract_creature_name
-                        # Use launcher-configured name, or derive from filename
-                        base_name = creature_cfg.get("name", "")
-                        if not base_name:
-                            base_name = extract_creature_name(token_data.name)
-                        display_name = f"{base_name}" if count == 1 else f"{base_name} {i+1}"
-                        hp = creature_cfg.get("hp", 10)
-                        ac = creature_cfg.get("ac", 10)
-                        is_player = creature_cfg.get("is_player", False)
-                        creature = CreatureState(
-                            name=display_name,
-                            hp=hp, hp_max=hp, ac=ac,
-                            is_player=is_player,
-                            token_path=token_data.path,
-                            token_scale=token_scale,
-                            position=(col_offset + i, 0)
-                        )
+
+                        if i < len(saved_list):
+                            # Reuse saved creature (preserves name, HP, AC, conditions, etc.)
+                            creature = saved_list[i]
+                            creature.token_scale = token_scale
+                        else:
+                            # Create new creature from launcher config
+                            base_name = creature_cfg.get("name", "")
+                            if not base_name:
+                                base_name = extract_creature_name(token_data.name)
+                            display_name = f"{base_name}" if count == 1 else f"{base_name} {i+1}"
+                            hp = creature_cfg.get("hp", 10)
+                            ac = creature_cfg.get("ac", 10)
+                            is_player = creature_cfg.get("is_player", False)
+                            creature = CreatureState(
+                                name=display_name,
+                                hp=hp, hp_max=hp, ac=ac,
+                                is_player=is_player,
+                                token_path=token_data.path,
+                                token_scale=token_scale,
+                                position=(col_offset + i, 0)
+                            )
                         self.encounter.add_creature(creature)
                     except ImportError:
                         pass
@@ -481,43 +491,18 @@ class _MapGraphicsView(QGraphicsView):
                 token = TokenItem(pixmap, token_data.name, self.grid_size, token_scale,
                                   creature=creature, viewer=self.parent_viewer)
                 self._scene.addItem(token)
-                token.setPos((col_offset + i) * self.grid_size, 0)
+                # Use saved position if available, otherwise default
+                if creature and creature.position != (0, 0):
+                    gx, gy = creature.position
+                    token.setPos(gx * self.grid_size, gy * self.grid_size)
+                else:
+                    token.setPos((col_offset + i) * self.grid_size, 0)
                 self.token_items.append(token)
             col_offset += count
 
-        # Auto-save initial creatures
+        # Auto-save
         if self.parent_viewer:
             self.parent_viewer.schedule_save()
-
-    def _create_tokens_from_encounter(self, tokens_to_add):
-        """Create token visuals for creatures loaded from config.json."""
-        if not self.encounter:
-            return
-
-        # Build a lookup: token filename -> (pixmap, scale) from tokens_to_add
-        token_lookup = {}
-        for token_data, token_cfg in tokens_to_add.items():
-            token_scale = token_cfg[1] if len(token_cfg) > 1 else 1.0
-            token_lookup[token_data.path] = (QPixmap(token_data.path), token_scale)
-
-        for creature in self.encounter.creatures:
-            # Find matching pixmap by token_path
-            if creature.token_path and creature.token_path in token_lookup:
-                pixmap, _ = token_lookup[creature.token_path]
-            elif creature.token_path:
-                pixmap = QPixmap(creature.token_path)
-            else:
-                pixmap = QPixmap(64, 64)
-                pixmap.fill(QColor("#e94560"))
-
-            token = TokenItem(pixmap, creature.name, self.grid_size,
-                              creature.token_scale, creature=creature,
-                              viewer=self.parent_viewer)
-            self._scene.addItem(token)
-            # Place at saved grid position
-            gx, gy = creature.position
-            token.setPos(gx * self.grid_size, gy * self.grid_size)
-            self.token_items.append(token)
 
     def fit_to_screen(self):
         self._scene.setSceneRect(QRectF(self.map_pixmap.rect()))

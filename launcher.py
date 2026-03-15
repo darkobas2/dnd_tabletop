@@ -495,7 +495,26 @@ class LauncherWindow(QWidget):
                 "structures": structures,
                 "heightmap": heightmap,
             }
-            self._auto_save_config()
+            # Write scan data directly to config.json (don't rely on _auto_save_config
+            # which can be overwritten by watchdog-triggered rescan race conditions)
+            config_path = os.path.join(folder_data.path, "config.json")
+            try:
+                existing = {}
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as f:
+                        existing = json.load(f)
+                if "maps" not in existing:
+                    existing["maps"] = {}
+                if map_data.name not in existing["maps"]:
+                    existing["maps"][map_data.name] = {}
+                existing["maps"][map_data.name]["scan_data"] = map_data.scan_data
+                existing["maps"][map_data.name]["w"] = map_data.width_squares
+                existing["maps"][map_data.name]["h"] = map_data.height_squares
+                existing["maps"][map_data.name]["scale"] = map_data.scale
+                with open(config_path, 'w') as f:
+                    json.dump(existing, f, indent=4)
+            except Exception as e:
+                print(f"Warning: Could not save scan data: {e}")
 
             summary = (
                 f"3D Scan Complete!\n\n"
