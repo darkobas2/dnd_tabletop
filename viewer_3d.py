@@ -43,38 +43,36 @@ class DNDToken3D(Entity):
 
         s = scale_val
 
-        # --- 3D cylindrical base with rim ---
+        # --- Base (cube disc since cylinder may not be available) ---
         self.base = Entity(
             parent=self,
-            model='cylinder',
+            model='cube',
             color=color.rgb(50, 45, 40),
-            scale=(s * 0.9, 0.12, s * 0.9),
-            y=0.06,
+            scale=(s * 0.9, 0.1, s * 0.9),
+            y=0.05,
             collider='box',
         )
-        # Rim
-        Entity(
-            parent=self,
-            model='cylinder',
-            color=color.rgb(90, 80, 60),
-            scale=(s * 0.92, 0.03, s * 0.92),
-            y=0.125,
-        )
 
-        # --- Billboard sprite (faces camera every frame) ---
-        self.billboard = Entity(
+        # --- Standee sprite (faces camera via update loop) ---
+        self.sprite = Entity(
             parent=self,
             model='quad',
             texture=tex,
             scale=(s * 0.85, s * 0.85),
-            y=s * 0.5 + 0.15,
-            billboard=True,  # Ursina built-in: always faces camera
+            y=s * 0.5 + 0.1,
             collider='box',
         )
 
         # Tag children for click detection
-        self.billboard.parent_token = self
+        self.sprite.parent_token = self
         self.base.parent_token = self
+
+    def update(self):
+        """Make the sprite always face the camera (billboard effect)."""
+        if camera:
+            self.sprite.look_at(camera.position, axis='y')
+            self.sprite.rotation_x = 0
+            self.sprite.rotation_z = 0
 
     def highlight(self, on=True):
         self.base.color = color.rgb(220, 200, 50) if on else color.rgb(50, 45, 40)

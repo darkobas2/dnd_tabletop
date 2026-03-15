@@ -35,15 +35,28 @@ class DNDApp:
             self.ipc_server.stop()
         sys.exit(code)
 
+    def _load_encounter(self, folder_path):
+        """Load saved encounter state from config.json, or return empty."""
+        config_path = os.path.join(folder_path, "config.json")
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    cfg = json.load(f)
+                if "creatures" in cfg:
+                    return EncounterState.from_dict({"creatures": cfg["creatures"]})
+            except Exception:
+                pass
+        return EncounterState()
+
     def launch_map(self, map_data, tokens_to_add, use_3d=False):
+        folder_path = os.path.dirname(map_data.path)
+
         if use_3d:
-            # Prepare config for subprocess
             token_cfg = {
                 t.name: (count, scale, os.path.abspath(t.path))
                 for t, (count, scale) in tokens_to_add.items()
             }
 
-            # Start IPC server for 3D communication
             self.ipc_server = IPCServer(on_message=self._handle_3d_message)
             self.ipc_server.start()
 
@@ -73,8 +86,8 @@ class DNDApp:
                     self.ipc_server = None
                 self.launcher.show()
         else:
-            # Create encounter state for the 2D session
-            encounter = EncounterState()
+            # Load saved encounter or create fresh
+            encounter = self._load_encounter(folder_path)
 
             self.viewer = MapViewer(
                 map_data.path,
@@ -83,6 +96,7 @@ class DNDApp:
                 tokens_to_add,
                 map_data.scale,
                 encounter=encounter,
+                folder_path=folder_path,
             )
             self.viewer.setWindowTitle(f"D&D Map: {map_data.name}")
             self.viewer.showFullScreen()

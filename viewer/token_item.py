@@ -126,6 +126,11 @@ class TokenItem(QGraphicsPixmapItem):
             text_item.setToolTip(cond)
             self._condition_icons.append(text_item)
 
+    def _trigger_save(self):
+        """Tell the parent viewer to save creature data."""
+        if self.viewer and hasattr(self.viewer, 'schedule_save'):
+            self.viewer.schedule_save()
+
     def update_visuals(self):
         """Refresh all visual overlays from creature state."""
         if not self.creature:
@@ -156,7 +161,10 @@ class TokenItem(QGraphicsPixmapItem):
             if self.creature:
                 grid_col = int(new_pos.x() // self.grid_size)
                 grid_row = int(new_pos.y() // self.grid_size)
+                old_pos = self.creature.position
                 self.creature.position = (grid_col, grid_row)
+                if old_pos != (grid_col, grid_row):
+                    self._trigger_save()
 
             return QPointF(gx, gy)
 
@@ -232,6 +240,7 @@ class TokenItem(QGraphicsPixmapItem):
                 self.update_visuals()
                 if self.viewer and hasattr(self.viewer, 'combat_log'):
                     self.viewer.combat_log.log_damage(self.creature.name, val, self.creature.hp, self.creature.hp_max)
+                self._trigger_save()
 
         elif action == heal_action:
             val, ok = QInputDialog.getInt(None, "Heal", f"Healing for {self.creature.name}:", 0, 0, 9999)
@@ -240,6 +249,7 @@ class TokenItem(QGraphicsPixmapItem):
                 self.update_visuals()
                 if self.viewer and hasattr(self.viewer, 'combat_log'):
                     self.viewer.combat_log.log_healing(self.creature.name, val, self.creature.hp, self.creature.hp_max)
+                self._trigger_save()
 
         elif action == set_hp_action:
             val, ok = QInputDialog.getInt(None, "Set HP", f"Set HP for {self.creature.name}:",
@@ -247,10 +257,12 @@ class TokenItem(QGraphicsPixmapItem):
             if ok:
                 self.creature.set_hp(val)
                 self.update_visuals()
+                self._trigger_save()
 
         elif action == hide_action:
             self.creature.is_visible = not self.creature.is_visible
             self.update_visuals()
+            self._trigger_save()
 
         elif action == edit_action:
             if self.viewer:
@@ -271,6 +283,7 @@ class TokenItem(QGraphicsPixmapItem):
                 if self.viewer and hasattr(self.viewer, 'combat_log'):
                     self.viewer.combat_log.log_condition(self.creature.name, cond_name, True)
             self.update_visuals()
+            self._trigger_save()
 
     def hoverEnterEvent(self, event):
         if self.creature:
