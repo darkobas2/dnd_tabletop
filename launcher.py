@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QLineEdit)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from scanner import DNDScanner, TokenData
+from core.name_utils import extract_creature_name
 
 class TokenConfigRow(QFrame):
     """Widget for a single token type — count, size, name, HP, AC."""
@@ -23,14 +24,7 @@ class TokenConfigRow(QFrame):
         # Row 1: File name + Qty + Size
         row1 = QHBoxLayout()
         row1.setSpacing(4)
-        # Shorten the filename for display
-        short_name = token_data.name
-        if len(short_name) > 30:
-            parts = short_name.split('_')
-            for part in parts:
-                if len(part) > 3 and not part.startswith('token') and not part[0].isdigit():
-                    short_name = part.capitalize()
-                    break
+        short_name = extract_creature_name(token_data.name)
         file_label = QLabel(f"<small>{short_name}</small>")
         file_label.setMinimumWidth(100)
         file_label.setToolTip(token_data.name)

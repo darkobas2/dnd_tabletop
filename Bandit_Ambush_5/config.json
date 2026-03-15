@@ -38,5 +38,163 @@
             "ac": 10,
             "is_player": false
         }
-    }
+    },
+    "creatures": [
+        {
+            "id": "219789db-4d24-43e0-94fd-3df7bbd28d94",
+            "name": "Humanoid 1",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                0,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_humanbanditsniper1_2026-03-15T12_56_40.996Z.png",
+            "token_scale": 1.29,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "75f09c3e-ec3b-41db-a956-9448ef2ffa2b",
+            "name": "Humanoid 2",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                1,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_humanbanditsniper1_2026-03-15T12_56_40.996Z.png",
+            "token_scale": 1.29,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "1054aec2-a09b-4d09-aa79-d77b05125d37",
+            "name": "Humanoid 1",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                2,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png",
+            "token_scale": 1.53,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "018c3b57-55aa-4814-9f48-183854f82592",
+            "name": "Humanoid 2",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                3,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png",
+            "token_scale": 1.53,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "d07d609b-43f9-4df0-a337-a84df88433be",
+            "name": "Humanoid 1",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                4,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
+            "token_scale": 0.9,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "26cb5da3-410b-421c-be0b-2a7056921d88",
+            "name": "Humanoid 2",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                5,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
+            "token_scale": 0.9,
+            "notes": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        }
+    ]
 }

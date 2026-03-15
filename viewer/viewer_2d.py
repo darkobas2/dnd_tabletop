@@ -457,16 +457,11 @@ class _MapGraphicsView(QGraphicsView):
                 if self.encounter:
                     try:
                         from core.game_state import CreatureState
+                        from core.name_utils import extract_creature_name
                         # Use launcher-configured name, or derive from filename
                         base_name = creature_cfg.get("name", "")
                         if not base_name:
-                            base_name = token_data.name.split('.')[0]
-                            if len(base_name) > 20:
-                                parts = base_name.split('_')
-                                for part in parts:
-                                    if len(part) > 3 and not part.startswith('token') and not part[0].isdigit():
-                                        base_name = part.capitalize()
-                                        break
+                            base_name = extract_creature_name(token_data.name)
                         display_name = f"{base_name}" if count == 1 else f"{base_name} {i+1}"
                         hp = creature_cfg.get("hp", 10)
                         ac = creature_cfg.get("ac", 10)
@@ -501,7 +496,8 @@ class _MapGraphicsView(QGraphicsView):
 
         # Build a lookup: token filename -> (pixmap, scale) from tokens_to_add
         token_lookup = {}
-        for token_data, (count, token_scale) in tokens_to_add.items():
+        for token_data, token_cfg in tokens_to_add.items():
+            token_scale = token_cfg[1] if len(token_cfg) > 1 else 1.0
             token_lookup[token_data.path] = (QPixmap(token_data.path), token_scale)
 
         for creature in self.encounter.creatures:

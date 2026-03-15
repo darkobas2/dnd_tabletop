@@ -11,7 +11,7 @@ from core.game_state import EncounterState
 from ui.theme import apply_theme
 from ipc_bridge import IPCServer
 
-BASE_PATH = "/home/darkobas/Pictures/DND"
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 class DNDApp:
     def __init__(self):
