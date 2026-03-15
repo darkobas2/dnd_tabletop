@@ -1,12 +1,9 @@
 """3D Ursina viewer for D&D maps — launched as subprocess from main.py.
 
-Camera controls (TaleSpire / Tabletop Simulator conventions):
-  Right Drag    — Orbit camera around clicked point on map
-  Middle Drag   — Pan camera
-  Scroll        — Zoom toward/away from cursor
-  WASD / Arrows — Pan camera
-  Q / E         — Rotate camera 45 degrees
-  Space         — Reset camera to top-down
+Uses Ursina's EditorCamera (smooth, battle-tested controls):
+  Right Drag    — Orbit around clicked point
+  Middle Drag   — Pan
+  Scroll        — Zoom (smooth)
   Left Click    — Select / drag token
   G             — Toggle grid
   Escape        — Quit
@@ -25,17 +22,18 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# 3D Standee Token — thick cardboard-style miniature
+# Billboard Token — always faces camera, 3D base
 # ---------------------------------------------------------------------------
 
 class DNDToken3D(Entity):
-    """A 3D standee token: thick slab with artwork, on a cylindrical base."""
+    """A 3D token: billboard sprite (always faces camera) on a 3D base."""
 
     def __init__(self, texture_path, name, grid_x, grid_z, scale_val=1.0):
         p_path = Path(texture_path).absolute().as_posix()
         super().__init__(position=(grid_x, 0, grid_z))
         self.token_name = name
         self.creature_id = ""
+        self._scale_val = scale_val
 
         tex = None
         try:
@@ -45,68 +43,41 @@ class DNDToken3D(Entity):
 
         s = scale_val
 
-        # --- Circular base ---
-        self.token_base = Entity(
+        # --- 3D cylindrical base with rim ---
+        self.base = Entity(
             parent=self,
             model='cylinder',
-            color=color.rgb(40, 40, 45),
-            scale=(s * 0.9, 0.08, s * 0.9),
-            y=0.04,
+            color=color.rgb(50, 45, 40),
+            scale=(s * 0.9, 0.12, s * 0.9),
+            y=0.06,
             collider='box',
         )
-        # Base rim highlight
+        # Rim
         Entity(
             parent=self,
             model='cylinder',
-            color=color.rgb(80, 70, 55),
-            scale=(s * 0.92, 0.02, s * 0.92),
-            y=0.085,
+            color=color.rgb(90, 80, 60),
+            scale=(s * 0.92, 0.03, s * 0.92),
+            y=0.125,
         )
 
-        # --- Standee slab (thick "cardboard") ---
-        slab_height = s * 1.0
-        slab_thickness = s * 0.06
-        slab_y = slab_height / 2 + 0.1
-
-        # The slab body (thin cube gives it depth)
-        self.slab = Entity(
-            parent=self,
-            model='cube',
-            color=color.rgb(30, 30, 35),
-            scale=(s * 0.85, slab_height, slab_thickness),
-            y=slab_y,
-            collider='box',
-        )
-
-        # Front artwork
-        self.front_face = Entity(
+        # --- Billboard sprite (faces camera every frame) ---
+        self.billboard = Entity(
             parent=self,
             model='quad',
             texture=tex,
-            scale=(s * 0.85, slab_height),
-            y=slab_y,
-            z=-(slab_thickness / 2 + 0.001),
-            collider='box',
-        )
-
-        # Back artwork
-        self.back_face = Entity(
-            parent=self,
-            model='quad',
-            texture=tex,
-            scale=(s * 0.85, slab_height),
-            y=slab_y,
-            z=(slab_thickness / 2 + 0.001),
-            rotation_y=180,
+            scale=(s * 0.85, s * 0.85),
+            y=s * 0.5 + 0.15,
+            billboard=True,  # Ursina built-in: always faces camera
             collider='box',
         )
 
         # Tag children for click detection
-        for child in (self.front_face, self.back_face, self.slab, self.token_base):
-            child.parent_token = self
+        self.billboard.parent_token = self
+        self.base.parent_token = self
 
     def highlight(self, on=True):
-        self.token_base.color = color.rgb(220, 200, 50) if on else color.rgb(40, 40, 45)
+        self.base.color = color.rgb(220, 200, 50) if on else color.rgb(50, 45, 40)
 
     def set_grid_pos(self, gx, gz, map_scale):
         self.x = (gx + 0.5) * map_scale
@@ -143,20 +114,18 @@ class DNDMap3D:
 
         # ---- Environment ----
         Sky(color=color.rgb(12, 12, 25))
+        AmbientLight(color=color.rgba(210, 205, 220, 255))
 
-        # Lighting — ambient only (fast on iGPU, no shadows)
-        AmbientLight(color=color.rgba(200, 195, 210, 255))
-
-        # Table surface (dark wood under the map)
-        table_margin = 3
+        # Dark table under the map
+        table_pad = 2
         Entity(
             model='cube',
             color=color.rgb(45, 30, 20),
-            scale=(self.w + table_margin * 2, 0.3, self.h + table_margin * 2),
-            position=(self.w / 2, -0.2, self.h / 2),
+            scale=(self.w + table_pad * 2, 0.4, self.h + table_pad * 2),
+            position=(self.w / 2, -0.25, self.h / 2),
         )
 
-        # Map on the table (slightly raised)
+        # Map floor (slightly raised)
         self.floor = Entity(
             model='quad',
             texture=map_tex,
@@ -166,23 +135,20 @@ class DNDMap3D:
             position=(self.w / 2, 0.01, self.h / 2),
         )
 
-        # Map border / frame
-        border_w = 0.08
-        border_color = color.rgb(70, 50, 30)
-        for bx, bz, bsx, bsz in [
-            (self.w / 2, -border_w / 2, self.w + border_w * 2, border_w),          # front
-            (self.w / 2, self.h + border_w / 2, self.w + border_w * 2, border_w),  # back
-            (-border_w / 2, self.h / 2, border_w, self.h + border_w * 2),          # left
-            (self.w + border_w / 2, self.h / 2, border_w, self.h + border_w * 2),  # right
+        # Wooden frame around map
+        frame_h = 0.2
+        frame_w = 0.1
+        frame_col = color.rgb(70, 50, 30)
+        for fx, fz, fsx, fsz in [
+            (self.w / 2, -frame_w / 2, self.w + frame_w * 2, frame_w),
+            (self.w / 2, self.h + frame_w / 2, self.w + frame_w * 2, frame_w),
+            (-frame_w / 2, self.h / 2, frame_w, self.h),
+            (self.w + frame_w / 2, self.h / 2, frame_w, self.h),
         ]:
-            Entity(
-                model='cube',
-                color=border_color,
-                scale=(bsx, 0.15, bsz),
-                position=(bx, 0.05, bz),
-            )
+            Entity(model='cube', color=frame_col,
+                   scale=(fsx, frame_h, fsz), position=(fx, frame_h / 2 - 0.05, fz))
 
-        # Grid overlay
+        # Grid
         self.grid = Entity(
             model=Grid(self.width_sq, self.height_sq),
             rotation=(90, 0, 0),
@@ -192,21 +158,31 @@ class DNDMap3D:
             y=0.02,
         )
 
-        # Walls from scan data
+        # ---- 3D geometry from scan data ----
         self.walls = []
         scan_data = config.get('scan_data', {})
         if 'walls' in scan_data:
             for wd in scan_data['walls']:
                 self._create_wall(wd)
+        if 'heightmap' in scan_data:
+            self._create_terrain(scan_data['heightmap'])
+        if 'structures' in scan_data:
+            for s in scan_data['structures']:
+                self._create_structure(s)
 
-        # ---- Camera state ----
-        self._cam_target = Vec3(self.w / 2, 0, self.h / 2)
-        self._cam_dist = max(self.w, self.h) * 1.0
-        self._cam_yaw = 0.0
-        self._cam_pitch = 55.0
-        self._rotating = False
-        self._panning = False
-        self._apply_camera()
+        # ---- EditorCamera — the real deal ----
+        self.cam = EditorCamera(
+            rotation_speed=200,
+            pan_speed=Vec2(5, 5),
+            move_speed=10,
+            zoom_speed=1.25,
+            zoom_smoothing=8,
+            rotate_around_mouse_hit=True,  # Orbit around where you click!
+        )
+        # Position camera looking at map center
+        self.cam.position = (self.w / 2, 0, self.h / 2)
+        self.cam.rotation_x = 50
+        camera.z = -max(self.w, self.h) * 1.2
 
         # ---- Tokens ----
         self.tokens = []
@@ -237,37 +213,13 @@ class DNDMap3D:
 
         # ---- HUD ----
         Text(
-            text='[RMB] Orbit  [MMB] Pan  [Scroll] Zoom  [WASD] Move  [Q/E] Rotate  [Space] Reset  [G] Grid',
-            position=(-0.85, 0.48),
-            scale=0.65,
+            text='[RMB] Orbit  [MMB] Pan  [Scroll] Zoom  [LMB] Move token  [G] Grid',
+            position=(-0.75, 0.48),
+            scale=0.7,
             color=color.rgba(180, 180, 180, 100),
         )
 
-    # ---- Camera ----
-
-    def _apply_camera(self):
-        self._cam_pitch = clamp(self._cam_pitch, 5, 89)
-        self._cam_dist = clamp(self._cam_dist, 2, 150)
-
-        pr = math.radians(self._cam_pitch)
-        yr = math.radians(self._cam_yaw)
-
-        cam_y = self._cam_dist * math.sin(pr)
-        horiz = self._cam_dist * math.cos(pr)
-        cam_x = horiz * math.sin(yr)
-        cam_z = -horiz * math.cos(yr)
-
-        camera.position = self._cam_target + Vec3(cam_x, cam_y, cam_z)
-        camera.look_at(self._cam_target)
-
-    def _reset_camera(self):
-        self._cam_target = Vec3(self.w / 2, 0, self.h / 2)
-        self._cam_dist = max(self.w, self.h) * 1.0
-        self._cam_yaw = 0
-        self._cam_pitch = 55
-        self._apply_camera()
-
-    # ---- Walls ----
+    # ---- 3D World Generation ----
 
     def _create_wall(self, wall_data):
         sx, sy = wall_data['start']
@@ -277,14 +229,61 @@ class DNDMap3D:
         dist = math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2)
         if dist < 0.1:
             return
-        Entity(
+
+        thickness = 0.25
+        wall = Entity(
             model='cube',
-            color=color.rgb(120, 110, 100),
-            scale=(dist * ms, h, 0.2),
+            color=color.rgb(100, 90, 80),
+            scale=(dist * ms, h, thickness),
             position=((sx + ex) / 2 * ms, h / 2, (sy + ey) / 2 * ms),
             rotation_y=-math.degrees(math.atan2(ey - sy, ex - sx)),
             collider='box',
         )
+        # Wall top cap (lighter edge)
+        Entity(
+            parent=wall,
+            model='cube',
+            color=color.rgb(130, 120, 110),
+            scale=(1, 0.02, 1),
+            y=0.5,
+        )
+        self.walls.append(wall)
+
+    def _create_terrain(self, heightmap_data):
+        """Create raised floor sections from heightmap data."""
+        ms = self.map_scale
+        for block in heightmap_data:
+            x, z = block['x'] * ms, block['z'] * ms
+            w, d = block.get('w', 1) * ms, block.get('d', 1) * ms
+            h = block.get('h', 0.5)
+            c = block.get('color', [80, 75, 70])
+            Entity(
+                model='cube',
+                color=color.rgb(*c),
+                scale=(w, h, d),
+                position=(x + w / 2, h / 2, z + d / 2),
+                collider='box',
+            )
+
+    def _create_structure(self, struct):
+        """Create a structure (pillar, platform, etc.) from scan data."""
+        ms = self.map_scale
+        stype = struct.get('type', 'box')
+        x = struct['x'] * ms
+        z = struct['z'] * ms
+        h = struct.get('h', 2)
+        s = struct.get('size', 1) * ms
+        c = struct.get('color', [90, 85, 80])
+
+        if stype == 'pillar':
+            Entity(model='cylinder', color=color.rgb(*c),
+                   scale=(s * 0.3, h, s * 0.3), position=(x, h / 2, z))
+        elif stype == 'platform':
+            Entity(model='cube', color=color.rgb(*c),
+                   scale=(s, h * 0.3, s), position=(x, h * 0.15, z))
+        else:
+            Entity(model='cube', color=color.rgb(*c),
+                   scale=(s, h, s), position=(x, h / 2, z))
 
     # ---- IPC ----
 
@@ -298,101 +297,22 @@ class DNDMap3D:
     # ---- Frame update ----
 
     def update(self):
-        dt = time.dt
-
-        # Token dragging
         if self.dragging and self.selected_token and mouse.world_point:
             self.selected_token.x = mouse.world_point.x
             self.selected_token.z = mouse.world_point.z
             self.selected_token.y = 0.3
 
-        # Right-drag: orbit
-        if self._rotating:
-            if mouse.velocity[0] != 0 or mouse.velocity[1] != 0:
-                self._cam_yaw -= mouse.velocity[0] * 150
-                self._cam_pitch += mouse.velocity[1] * 150
-                self._apply_camera()
-
-        # Middle-drag: pan
-        if self._panning:
-            if mouse.velocity[0] != 0 or mouse.velocity[1] != 0:
-                yr = math.radians(self._cam_yaw)
-                right = Vec3(math.cos(yr), 0, math.sin(yr))
-                fwd = Vec3(-math.sin(yr), 0, math.cos(yr))
-                speed = self._cam_dist * 0.5
-                self._cam_target += right * (-mouse.velocity[0] * speed)
-                self._cam_target += fwd * (-mouse.velocity[1] * speed)
-                self._apply_camera()
-
-        # WASD / Arrow key panning
-        pan_speed = self._cam_dist * 0.5 * dt
-        yr = math.radians(self._cam_yaw)
-        right = Vec3(math.cos(yr), 0, math.sin(yr))
-        fwd = Vec3(-math.sin(yr), 0, math.cos(yr))
-
-        move = Vec3(0, 0, 0)
-        if held_keys['w'] or held_keys['up arrow']:
-            move += fwd * pan_speed
-        if held_keys['s'] or held_keys['down arrow']:
-            move -= fwd * pan_speed
-        if held_keys['a'] or held_keys['left arrow']:
-            move -= right * pan_speed
-        if held_keys['d'] or held_keys['right arrow']:
-            move += right * pan_speed
-
-        if move.length() > 0:
-            self._cam_target += move
-            self._apply_camera()
-
-    # ---- Input ----
+    # ---- Input (only handles left-click for tokens + G/Esc) ----
 
     def input(self, key):
-        # Grid toggle
         if key == 'g':
             self.grid.enabled = not self.grid.enabled
-        # Quit
         elif key == 'escape':
             if self.ipc:
                 self.ipc.stop()
             application.quit()
-        # Reset camera
-        elif key == 'space':
-            self._reset_camera()
-        # Q/E rotation (45 degree steps)
-        elif key == 'q':
-            self._cam_yaw -= 45
-            self._apply_camera()
-        elif key == 'e':
-            self._cam_yaw += 45
-            self._apply_camera()
 
-        # ---- Scroll: zoom toward cursor ----
-        if key == 'scroll up':
-            self._cam_dist *= 0.9
-            if mouse.world_point:
-                target = Vec3(mouse.world_point.x, 0, mouse.world_point.z)
-                self._cam_target = lerp(self._cam_target, target, 0.12)
-            self._apply_camera()
-        elif key == 'scroll down':
-            self._cam_dist *= 1.1
-            self._apply_camera()
-
-        # ---- Right mouse: orbit ----
-        if key == 'right mouse down':
-            if mouse.world_point:
-                self._cam_target = Vec3(mouse.world_point.x, 0, mouse.world_point.z)
-                self._apply_camera()
-            self._rotating = True
-        elif key == 'right mouse up':
-            self._rotating = False
-
-        # ---- Middle mouse: pan ----
-        if key == 'middle mouse down':
-            self._panning = True
-        elif key == 'middle mouse up':
-            self._panning = False
-
-        # ---- Left click: select/drag tokens ----
+        # Left click: select/drag tokens (EditorCamera does NOT use left-click)
         if key == 'left mouse down':
             hit = mouse.hovered_entity
             if hit:
@@ -404,7 +324,6 @@ class DNDMap3D:
                     self.selected_token.highlight(True)
                     self.dragging = True
                     return
-            # Clicked empty space
             if self.selected_token:
                 self.selected_token.highlight(False)
             self.selected_token = None

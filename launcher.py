@@ -300,66 +300,151 @@ class LauncherWindow(QWidget):
         except StopIteration: pass
 
     def run_ai_scan(self):
-        """Use computer vision to detect walls and 3D assets."""
+        """Use computer vision to detect walls, structures, and terrain for 3D rendering."""
         folder_name = self.folder_combo.currentText().strip()
         map_item = self.map_list.currentItem()
-        if not folder_name or not map_item: return
-        
+        if not folder_name or not map_item:
+            return
+
         folder_data = self.scanner.folders[folder_name]
         try:
             map_data = next(m for m in folder_data.maps if m.name == map_item.text())
-            
+
             import cv2
             import numpy as np
-            
-            # Load map for analysis
+
             img = cv2.imread(map_data.path)
             if img is None:
                 print(f"Error: Could not read image {map_data.path}")
                 return
-                
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # Use adaptive thresholding to better handle varied lighting/styles
-            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-            
-            # Detect lines (Hough Transform) with stricter length requirements
-            lines = cv2.HoughLinesP(thresh, 1, np.pi/180, threshold=80, minLineLength=40, maxLineGap=20)
-            
-            detected_walls = []
-            # Base Perimeter
-            grid_w, grid_h = map_data.width_squares, map_data.height_squares
-            detected_walls.append({"start": [0, 0], "end": [grid_w, 0], "height": 4})
-            detected_walls.append({"start": [0, 0], "end": [0, grid_h], "height": 4})
-            detected_walls.append({"start": [grid_w, 0], "end": [grid_w, grid_h], "height": 4})
-            detected_walls.append({"start": [0, grid_h], "end": [grid_w, grid_h], "height": 4})
 
-            h, w = img.shape[:2]
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_h, img_w = img.shape[:2]
+            grid_w, grid_h = map_data.width_squares, map_data.height_squares
+
+            def px_to_grid(px_x, px_y):
+                """Convert pixel coords to grid coords (Y inverted for 3D Z)."""
+                gx = (px_x / img_w) * grid_w
+                gz = grid_h - ((px_y / img_h) * grid_h)
+                return gx, gz
+
+            # ========== 1. Wall detection (Canny + Hough) ==========
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(blurred, 50, 150)
+            # Dilate edges to connect nearby segments
+            kernel = np.ones((3, 3), np.uint8)
+            edges = cv2.dilate(edges, kernel, iterations=1)
+
+            lines = cv2.HoughLinesP(edges, 1, np.pi / 180,
+                                     threshold=60, minLineLength=30, maxLineGap=15)
+
+            detected_walls = []
+            # Perimeter walls
+            for s, e in [([0, 0], [grid_w, 0]), ([0, 0], [0, grid_h]),
+                         ([grid_w, 0], [grid_w, grid_h]), ([0, grid_h], [grid_w, grid_h])]:
+                detected_walls.append({"start": s, "end": e, "height": 4})
+
             if lines is not None:
-                # Convert pixel lines to grid lines
+                # Merge nearby parallel line segments
+                merged = []
                 for line in lines:
                     x1, y1, x2, y2 = line[0]
-                    # Map to grid coords
-                    gx1 = (x1 / w) * grid_w
-                    gz1 = grid_h - ((y1 / h) * grid_h) # Invert Y to Z
-                    gx2 = (x2 / w) * grid_w
-                    gz2 = grid_h - ((y2 / h) * grid_h) # Invert Y to Z
+                    gx1, gz1 = px_to_grid(x1, y1)
+                    gx2, gz2 = px_to_grid(x2, y2)
+                    dist = math.sqrt((gx2 - gx1) ** 2 + (gz2 - gz1) ** 2)
+                    if dist > 1.5:
+                        merged.append({"start": [gx1, gz1], "end": [gx2, gz2], "height": 3})
+                detected_walls.extend(merged)
 
-                    # Filter out very short segments that aren't structural
-                    grid_dist = math.sqrt((gx2-gx1)**2 + (gz2-gz1)**2)
-                    if grid_dist > 1.5: 
-                        detected_walls.append({
-                            "start": [gx1, gz1], 
-                            "end": [gx2, gz2], 
-                            "height": 3
+            # ========== 2. Structure detection (dark regions = walls/pillars) ==========
+            structures = []
+            # Threshold dark areas (likely walls/structures in map art)
+            _, dark_mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
+            dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+            dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+
+            contours, _ = cv2.findContours(dark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cell_px_w = img_w / grid_w
+            cell_px_h = img_h / grid_h
+            min_area = cell_px_w * cell_px_h * 0.5  # At least half a grid cell
+
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area < min_area:
+                    continue
+
+                x, y, bw, bh = cv2.boundingRect(cnt)
+                gx, gz = px_to_grid(x + bw / 2, y + bh / 2)
+                g_size_w = (bw / img_w) * grid_w
+                g_size_h = (bh / img_h) * grid_h
+
+                # Classify: small square = pillar, long thin = wall already handled, large = platform
+                aspect = max(g_size_w, g_size_h) / max(min(g_size_w, g_size_h), 0.1)
+                avg_size = (g_size_w + g_size_h) / 2
+
+                if avg_size < 1.5 and aspect < 2:
+                    # Small structure — pillar
+                    structures.append({
+                        "type": "pillar", "x": gx, "z": gz,
+                        "h": 3, "size": avg_size, "color": [80, 75, 70]
+                    })
+                elif aspect < 3 and avg_size > 2:
+                    # Large blocky region — raised platform/rock
+                    structures.append({
+                        "type": "platform", "x": gx, "z": gz,
+                        "h": 1.5, "size": avg_size, "color": [70, 65, 55]
+                    })
+
+            # ========== 3. Heightmap from brightness (terrain elevation) ==========
+            heightmap = []
+            # Divide map into grid cells, analyze average brightness
+            for gy in range(grid_h):
+                for gx in range(grid_w):
+                    # Pixel region for this grid cell
+                    px_x1 = int(gx * cell_px_w)
+                    px_y1 = int((grid_h - 1 - gy) * cell_px_h)  # Invert Y
+                    px_x2 = int(px_x1 + cell_px_w)
+                    px_y2 = int(px_y1 + cell_px_h)
+                    px_x2 = min(px_x2, img_w)
+                    px_y2 = min(px_y2, img_h)
+
+                    cell_region = gray[px_y1:px_y2, px_x1:px_x2]
+                    if cell_region.size == 0:
+                        continue
+                    avg_bright = float(np.mean(cell_region))
+
+                    # Very dark cells -> raised terrain (walls/rocks)
+                    if avg_bright < 40:
+                        heightmap.append({
+                            "x": gx, "z": gy, "w": 1, "d": 1,
+                            "h": 2.0, "color": [60, 55, 50]
                         })
-            
-            map_data.scan_data = {"walls": detected_walls}
+                    elif avg_bright < 70:
+                        heightmap.append({
+                            "x": gx, "z": gy, "w": 1, "d": 1,
+                            "h": 0.8, "color": [75, 70, 60]
+                        })
+
+            # ========== Save results ==========
+            map_data.scan_data = {
+                "walls": detected_walls,
+                "structures": structures,
+                "heightmap": heightmap,
+            }
             self._auto_save_config()
-            QMessageBox.information(self, "AI Scan Complete", 
-                f"Detected {len(detected_walls)} wall segments using CV analysis.\nLaunch in 3D mode to see results.")
-            
+
+            summary = (
+                f"3D Scan Complete!\n\n"
+                f"Walls: {len(detected_walls)} segments\n"
+                f"Structures: {len(structures)} (pillars, platforms)\n"
+                f"Terrain blocks: {len(heightmap)} raised cells\n\n"
+                f"Launch in 3D mode to see the results."
+            )
+            QMessageBox.information(self, "AI 3D Scan Complete", summary)
+
         except Exception as e:
             print(f"DEBUG: Error during AI scan: {e}")
+            import traceback; traceback.print_exc()
             QMessageBox.warning(self, "Scan Error", f"CV Analysis failed: {str(e)}")
 
     def handle_launch(self):
