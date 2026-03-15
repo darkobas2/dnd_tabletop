@@ -28,6 +28,8 @@ class MapViewer(QMainWindow):
         self.token_items = []
         self._right_dock = None
         self._log_dock = None
+        self._map_path = map_path
+        self._server = None
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(1000)  # Debounce: save 1s after last change
@@ -89,6 +91,104 @@ class MapViewer(QMainWindow):
         edit_all_action = QAction("Edit All Creatures...", self)
         edit_all_action.triggered.connect(self._edit_all_creatures)
         creatures_menu.addAction(edit_all_action)
+
+        # ---- Network menu ----
+        net_menu = menubar.addMenu("Network")
+
+        self._host_action = QAction("Host Player View...", self)
+        self._host_action.triggered.connect(self._toggle_host)
+        net_menu.addAction(self._host_action)
+
+        self._show_qr_action = QAction("Show QR Code", self)
+        self._show_qr_action.triggered.connect(self._show_qr)
+        self._show_qr_action.setEnabled(False)
+        net_menu.addAction(self._show_qr_action)
+
+    def _toggle_host(self):
+        """Start or stop the player view server."""
+        if hasattr(self, '_server') and self._server:
+            self._server.stop()
+            self._server = None
+            self._host_action.setText("Host Player View...")
+            self._show_qr_action.setEnabled(False)
+            if self.combat_log:
+                self.combat_log.add_entry("info", "Player view server stopped")
+            return
+
+        try:
+            from net.server import PlayerViewServer
+            self._server = PlayerViewServer(port=8080)
+            if self.encounter:
+                map_path = ""
+                if self.view.base_pixmap:
+                    # Get the original map path from the view
+                    map_path = getattr(self, '_map_path', '')
+                self._server.set_encounter(
+                    self.encounter, map_path,
+                    self.view.width_sq, self.view.height_sq
+                )
+            self._server.start()
+            url = self._server.get_url()
+            self._host_action.setText(f"Stop Hosting ({url})")
+            self._show_qr_action.setEnabled(True)
+            if self.combat_log:
+                self.combat_log.add_entry("info", f"Player view live at {url}")
+
+            # Start broadcasting state periodically
+            self._broadcast_timer = QTimer(self)
+            self._broadcast_timer.setInterval(2000)
+            self._broadcast_timer.timeout.connect(self._broadcast_to_players)
+            self._broadcast_timer.start()
+
+        except Exception as e:
+            if self.combat_log:
+                self.combat_log.add_entry("info", f"Server error: {e}")
+            print(f"Server error: {e}")
+            import traceback; traceback.print_exc()
+
+    def _broadcast_to_players(self):
+        if hasattr(self, '_server') and self._server:
+            if self.encounter:
+                map_path = getattr(self, '_map_path', '')
+                self._server.set_encounter(
+                    self.encounter, map_path,
+                    self.view.width_sq, self.view.height_sq
+                )
+            self._server.broadcast_state()
+
+    def _show_qr(self):
+        """Show QR code in a dialog."""
+        if not hasattr(self, '_server') or not self._server:
+            return
+        try:
+            qr_path = self._server.get_qr_code_path()
+            if qr_path:
+                from PySide6.QtWidgets import QDialog, QLabel
+                dlg = QDialog(self)
+                dlg.setWindowTitle("Player Connection QR Code")
+                dlg.setMinimumSize(350, 400)
+                layout = QVBoxLayout(dlg)
+
+                url = self._server.get_url()
+                url_label = QLabel(f'<h3>Players connect to:</h3><h2 style="color:#f39c12">{url}</h2>')
+                url_label.setAlignment(Qt.AlignCenter)
+                url_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                layout.addWidget(url_label)
+
+                qr_label = QLabel()
+                qr_pixmap = QPixmap(qr_path)
+                qr_label.setPixmap(qr_pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                qr_label.setAlignment(Qt.AlignCenter)
+                layout.addWidget(qr_label)
+
+                hint = QLabel("Scan with phone camera to open player view")
+                hint.setAlignment(Qt.AlignCenter)
+                hint.setStyleSheet("color: #aaa;")
+                layout.addWidget(hint)
+
+                dlg.exec()
+        except Exception as e:
+            print(f"QR error: {e}")
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
@@ -283,6 +383,16 @@ class MapViewer(QMainWindow):
         except Exception as e:
             print(f"Warning: Could not save creatures: {e}")
 
+    def closeEvent(self, event):
+        """Clean up server on close."""
+        if hasattr(self, '_server') and self._server:
+            self._server.stop()
+        if hasattr(self, '_broadcast_timer') and self._broadcast_timer:
+            self._broadcast_timer.stop()
+        # Final save
+        self._save_creatures()
+        super().closeEvent(event)
+
     def keyPressEvent(self, event: QKeyEvent):
         self.view.keyPressEvent(event)
 
@@ -333,24 +443,38 @@ class _MapGraphicsView(QGraphicsView):
     def _add_tokens(self, tokens_to_add):
         """Add tokens to the scene, creating new CreatureState objects."""
         col_offset = 0
-        for token_data, (count, token_scale) in tokens_to_add.items():
+        for token_data, token_cfg in tokens_to_add.items():
+            # Support both (count, scale) and (count, scale, creature_cfg) formats
+            if len(token_cfg) == 3:
+                count, token_scale, creature_cfg = token_cfg
+            else:
+                count, token_scale = token_cfg[0], token_cfg[1]
+                creature_cfg = {}
+
             pixmap = QPixmap(token_data.path)
             for i in range(count):
                 creature = None
                 if self.encounter:
                     try:
                         from core.game_state import CreatureState
-                        base_name = token_data.name.split('.')[0]
-                        if len(base_name) > 20:
-                            parts = base_name.split('_')
-                            for part in parts:
-                                if len(part) > 3 and not part.startswith('token') and not part[0].isdigit():
-                                    base_name = part.capitalize()
-                                    break
+                        # Use launcher-configured name, or derive from filename
+                        base_name = creature_cfg.get("name", "")
+                        if not base_name:
+                            base_name = token_data.name.split('.')[0]
+                            if len(base_name) > 20:
+                                parts = base_name.split('_')
+                                for part in parts:
+                                    if len(part) > 3 and not part.startswith('token') and not part[0].isdigit():
+                                        base_name = part.capitalize()
+                                        break
                         display_name = f"{base_name}" if count == 1 else f"{base_name} {i+1}"
+                        hp = creature_cfg.get("hp", 10)
+                        ac = creature_cfg.get("ac", 10)
+                        is_player = creature_cfg.get("is_player", False)
                         creature = CreatureState(
                             name=display_name,
-                            hp=10, hp_max=10,
+                            hp=hp, hp_max=hp, ac=ac,
+                            is_player=is_player,
                             token_path=token_data.path,
                             token_scale=token_scale,
                             position=(col_offset + i, 0)

@@ -1,56 +1,101 @@
 import os
 import json
 import math
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox, 
-                             QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea, 
-                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox, QMessageBox)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
+                             QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
+                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox, QMessageBox,
+                             QLineEdit)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from scanner import DNDScanner, TokenData
 
 class TokenConfigRow(QFrame):
-    """Dedicated widget for a single character token's configuration."""
-    def __init__(self, token_data: TokenData, initial_count=0, initial_size=100):
+    """Widget for a single token type — count, size, name, HP, AC."""
+    def __init__(self, token_data: TokenData, initial_count=0, initial_size=100,
+                 initial_name="", initial_hp=10, initial_ac=10, initial_is_player=False):
         super().__init__()
         self.token_data = token_data
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Name
-        self.name_label = QLabel(f"<b>{token_data.name}</b>")
-        self.name_label.setMinimumWidth(150)
-        layout.addWidget(self.name_label, 2)
-        
-        # Quantity
-        layout.addWidget(QLabel("Qty:"))
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(5, 5, 5, 5)
+        outer.setSpacing(3)
+
+        # Row 1: File name + Qty + Size
+        row1 = QHBoxLayout()
+        row1.setSpacing(4)
+        # Shorten the filename for display
+        short_name = token_data.name
+        if len(short_name) > 30:
+            parts = short_name.split('_')
+            for part in parts:
+                if len(part) > 3 and not part.startswith('token') and not part[0].isdigit():
+                    short_name = part.capitalize()
+                    break
+        file_label = QLabel(f"<small>{short_name}</small>")
+        file_label.setMinimumWidth(100)
+        file_label.setToolTip(token_data.name)
+        row1.addWidget(file_label, 2)
+
+        row1.addWidget(QLabel("Qty:"))
         self.count_spin = QSpinBox()
         self.count_spin.setRange(0, 50)
         self.count_spin.setValue(initial_count)
-        self.count_spin.setFixedWidth(60)
-        layout.addWidget(self.count_spin, 0)
-        
-        # Size Slider
-        layout.addWidget(QLabel("Size:"))
+        self.count_spin.setFixedWidth(55)
+        row1.addWidget(self.count_spin)
+
+        row1.addWidget(QLabel("Size:"))
         self.size_slider = QSlider(Qt.Horizontal)
         self.size_slider.setRange(20, 400)
         self.size_slider.setValue(initial_size)
-        self.size_slider.setMinimumWidth(100)
-        layout.addWidget(self.size_slider, 2)
-        
-        # Size Label
+        self.size_slider.setMinimumWidth(60)
+        row1.addWidget(self.size_slider, 1)
         self.size_value_label = QLabel(f"{initial_size}%")
-        self.size_value_label.setFixedWidth(40)
-        self.size_slider.valueChanged.connect(self._update_size_label)
-        layout.addWidget(self.size_value_label, 0)
+        self.size_value_label.setFixedWidth(35)
+        self.size_slider.valueChanged.connect(lambda v: self.size_value_label.setText(f"{v}%"))
+        row1.addWidget(self.size_value_label)
+        outer.addLayout(row1)
 
-    def _update_size_label(self, value):
-        self.size_value_label.setText(f"{value}%")
-    
+        # Row 2: Name, HP, AC, Player checkbox
+        row2 = QHBoxLayout()
+        row2.setSpacing(4)
+
+        row2.addWidget(QLabel("Name:"))
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Creature name")
+        default_name = initial_name if initial_name else short_name
+        self.name_edit.setText(default_name)
+        self.name_edit.setMinimumWidth(80)
+        row2.addWidget(self.name_edit, 2)
+
+        row2.addWidget(QLabel("HP:"))
+        self.hp_spin = QSpinBox()
+        self.hp_spin.setRange(1, 9999)
+        self.hp_spin.setValue(initial_hp)
+        self.hp_spin.setFixedWidth(60)
+        row2.addWidget(self.hp_spin)
+
+        row2.addWidget(QLabel("AC:"))
+        self.ac_spin = QSpinBox()
+        self.ac_spin.setRange(0, 30)
+        self.ac_spin.setValue(initial_ac)
+        self.ac_spin.setFixedWidth(60)
+        row2.addWidget(self.ac_spin)
+
+        self.player_check = QCheckBox("PC")
+        self.player_check.setChecked(initial_is_player)
+        self.player_check.setToolTip("Player Character")
+        row2.addWidget(self.player_check)
+
+        outer.addLayout(row2)
+
     def get_config(self):
         return {
             "count": self.count_spin.value(),
-            "size": self.size_slider.value()
+            "size": self.size_slider.value(),
+            "name": self.name_edit.text(),
+            "hp": self.hp_spin.value(),
+            "ac": self.ac_spin.value(),
+            "is_player": self.player_check.isChecked(),
         }
 
 class LauncherWindow(QWidget):
@@ -61,7 +106,7 @@ class LauncherWindow(QWidget):
         self.scanner = scanner
         self.on_launch = on_launch
         self.setWindowTitle("D&D Map Interactive Launcher")
-        self.resize(800, 900)
+        self.resize(900, 900)
         
         self._updating = False
         self.token_rows = {} # TokenData -> TokenConfigRow
@@ -219,13 +264,25 @@ class LauncherWindow(QWidget):
                     saved_tokens = json.load(f).get("tokens", {})
             except: pass
 
-        # 4. Create new rows
+        # 4. Create new rows with saved creature stats
         for t in folder_data.tokens:
             cfg = saved_tokens.get(t.name, {"count": 0, "size": 100})
-            row = TokenConfigRow(t, cfg.get("count", 0), cfg.get("size", 100))
-            # Auto-save when token settings change
+            row = TokenConfigRow(
+                t,
+                initial_count=cfg.get("count", 0),
+                initial_size=cfg.get("size", 100),
+                initial_name=cfg.get("name", ""),
+                initial_hp=cfg.get("hp", 10),
+                initial_ac=cfg.get("ac", 10),
+                initial_is_player=cfg.get("is_player", False),
+            )
+            # Auto-save when any setting changes
             row.count_spin.valueChanged.connect(self._auto_save_config)
             row.size_slider.valueChanged.connect(self._auto_save_config)
+            row.name_edit.textChanged.connect(self._auto_save_config)
+            row.hp_spin.valueChanged.connect(self._auto_save_config)
+            row.ac_spin.valueChanged.connect(self._auto_save_config)
+            row.player_check.toggled.connect(self._auto_save_config)
             self.token_layout.addWidget(row)
             self.token_rows[t] = row
 
@@ -284,11 +341,21 @@ class LauncherWindow(QWidget):
             for t, row in self.token_rows.items():
                 token_configs[t.name] = row.get_config()
                 
+            # Read existing config to preserve creature data
+            existing_cfg = {}
+            config_path = os.path.join(folder_data.path, "config.json")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        existing_cfg = json.load(f)
+                except Exception:
+                    pass
+
             full_cfg = {
                 "maps": {
                     m.name: {
-                        "w": m.width_squares, 
-                        "h": m.height_squares, 
+                        "w": m.width_squares,
+                        "h": m.height_squares,
                         "scale": m.scale,
                         "scan_data": m.scan_data
                     }
@@ -296,6 +363,9 @@ class LauncherWindow(QWidget):
                 },
                 "tokens": token_configs
             }
+            # Preserve creatures saved by the viewer
+            if "creatures" in existing_cfg:
+                full_cfg["creatures"] = existing_cfg["creatures"]
             self.scanner.save_folder_config(folder_data.path, full_cfg)
         except StopIteration: pass
 
@@ -468,7 +538,13 @@ class LauncherWindow(QWidget):
             for t, row in self.token_rows.items():
                 cfg = row.get_config()
                 if cfg["count"] > 0:
-                    tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0)
+                    creature_cfg = {
+                        "name": cfg.get("name", ""),
+                        "hp": cfg.get("hp", 10),
+                        "ac": cfg.get("ac", 10),
+                        "is_player": cfg.get("is_player", False),
+                    }
+                    tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
             
             self._auto_save_config()
             

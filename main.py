@@ -54,7 +54,7 @@ class DNDApp:
         if use_3d:
             token_cfg = {
                 t.name: (count, scale, os.path.abspath(t.path))
-                for t, (count, scale) in tokens_to_add.items()
+                for t, (count, scale, *_rest) in tokens_to_add.items()
             }
 
             self.ipc_server = IPCServer(on_message=self._handle_3d_message)

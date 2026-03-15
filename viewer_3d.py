@@ -70,7 +70,7 @@ class DNDToken3D(Entity):
     def update(self):
         """Make the sprite always face the camera (billboard effect)."""
         if camera:
-            self.sprite.look_at(camera.position, axis='y')
+            self.sprite.look_at(camera.position, axis=Vec3.up)
             self.sprite.rotation_x = 0
             self.sprite.rotation_z = 0
 

@@ -3,3 +3,5 @@ watchdog
 pillow
 ursina
 opencv-python
+websockets
+qrcode

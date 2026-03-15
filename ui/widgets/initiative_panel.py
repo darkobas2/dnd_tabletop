@@ -168,11 +168,12 @@ class InitiativePanel(QWidget):
         for i, creature in enumerate(order):
             init_val = f"{creature.initiative:.0f}" if creature.initiative is not None else "--"
             hp_text = f"{creature.hp}/{creature.hp_max}"
+            ac_text = f"AC{creature.ac}"
             conditions_text = ""
             if creature.conditions:
                 conditions_text = " [" + ", ".join(creature.conditions[:3]) + "]"
 
-            text = f"{init_val:>3}  {creature.name}  ({hp_text}){conditions_text}"
+            text = f"{init_val:>3}  {creature.name}  ({hp_text} {ac_text}){conditions_text}"
 
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, creature.id)

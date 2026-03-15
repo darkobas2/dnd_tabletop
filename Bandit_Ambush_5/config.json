@@ -7,24 +7,36 @@
             "scan_data": {}
         },
         "Bandit Ambush - Summer - Night - 22x16 - 72 DPI.jpg": {
-            "w": 30,
-            "h": 30,
+            "w": 22,
+            "h": 16,
             "scale": 1.0,
             "scan_data": {}
         }
     },
     "tokens": {
         "_token-editor_token-uploads_humanoid_humanbanditsniper1_2026-03-15T12_56_40.996Z.png": {
-            "count": 3,
-            "size": 223
+            "count": 2,
+            "size": 129,
+            "name": "Humanoid",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
         },
         "_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png": {
             "count": 2,
-            "size": 279
+            "size": 153,
+            "name": "Humanoid",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
         },
         "_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png": {
-            "count": 5,
-            "size": 90
+            "count": 2,
+            "size": 90,
+            "name": "Humanoid",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
         }
     }
 }
