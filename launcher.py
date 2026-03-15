@@ -1,8 +1,9 @@
 import os
 import json
+import math
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox, 
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea, 
-                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox)
+                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox, QMessageBox)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from scanner import DNDScanner, TokenData
 
@@ -109,6 +110,12 @@ class LauncherWindow(QWidget):
         gs_row.addWidget(self.grid_scale_slider)
         gs_row.addWidget(self.grid_scale_label)
         map_cfg_layout.addRow("Global Map Zoom:", gs_row)
+        
+        self.ai_scan_btn = QPushButton("AI SCAN (Detect Walls/3D)")
+        self.ai_scan_btn.setStyleSheet("background-color: #9b59b6; color: white; font-weight: bold;")
+        self.ai_scan_btn.clicked.connect(self.run_ai_scan)
+        map_cfg_layout.addRow(self.ai_scan_btn)
+        
         main_layout.addWidget(map_cfg_frame)
         
         # 3. Character Setup
@@ -162,10 +169,9 @@ class LauncherWindow(QWidget):
         if self._updating: return
         self._updating = True
         
-        current_folder = self.folder_combo.currentText()
+        current_folder = self.folder_combo.currentText().strip()
         self.folder_combo.clear()
         
-        # Scanner keys are folder names
         folders = sorted(self.scanner.folders.keys())
         self.folder_combo.addItems(folders)
         
@@ -183,22 +189,19 @@ class LauncherWindow(QWidget):
         if self._updating or index < 0: return
         self._updating = True
         
-        folder_name = self.folder_combo.currentText()
+        folder_name = self.folder_combo.currentText().strip()
         if not folder_name or folder_name not in self.scanner.folders:
             self._updating = False
             return
             
         folder_data = self.scanner.folders[folder_name]
         
-        # Clear & Update Map List
+        # 1. Clear & Update Map List
         self.map_list.clear()
         for m in folder_data.maps:
             self.map_list.addItem(m.name)
-        
-        if self.map_list.count() > 0:
-            self.map_list.setCurrentRow(0)
             
-        # Clear Character List
+        # 2. Clear Character List
         while self.token_layout.count():
             item = self.token_layout.takeAt(0)
             if item and item.widget():
@@ -207,7 +210,7 @@ class LauncherWindow(QWidget):
         
         self.token_rows = {}
         
-        # Load character config
+        # 3. Load character config
         config_path = os.path.join(folder_data.path, "config.json")
         saved_tokens = {}
         if os.path.exists(config_path):
@@ -216,20 +219,27 @@ class LauncherWindow(QWidget):
                     saved_tokens = json.load(f).get("tokens", {})
             except: pass
 
-        # Create new rows
+        # 4. Create new rows
         for t in folder_data.tokens:
             cfg = saved_tokens.get(t.name, {"count": 0, "size": 100})
             row = TokenConfigRow(t, cfg.get("count", 0), cfg.get("size", 100))
+            # Auto-save when token settings change
+            row.count_spin.valueChanged.connect(self._auto_save_config)
+            row.size_slider.valueChanged.connect(self._auto_save_config)
             self.token_layout.addWidget(row)
             self.token_rows[t] = row
 
         self._updating = False
+        
+        # 5. Trigger map config load for the first map
+        if self.map_list.count() > 0:
+            self.map_list.setCurrentRow(0)
 
     @Slot(int)
     def load_map_config(self, index):
         if self._updating or index < 0: return
         
-        folder_name = self.folder_combo.currentText()
+        folder_name = self.folder_combo.currentText().strip()
         if not folder_name or folder_name not in self.scanner.folders: return
             
         map_item = self.map_list.item(index)
@@ -255,7 +265,7 @@ class LauncherWindow(QWidget):
 
     def _auto_save_config(self):
         if self._updating: return
-        folder_name = self.folder_combo.currentText()
+        folder_name = self.folder_combo.currentText().strip()
         map_item = self.map_list.currentItem()
         if not folder_name or not map_item or folder_name not in self.scanner.folders:
             return
@@ -276,7 +286,12 @@ class LauncherWindow(QWidget):
                 
             full_cfg = {
                 "maps": {
-                    m.name: {"w": m.width_squares, "h": m.height_squares, "scale": m.scale}
+                    m.name: {
+                        "w": m.width_squares, 
+                        "h": m.height_squares, 
+                        "scale": m.scale,
+                        "scan_data": m.scan_data
+                    }
                     for m in folder_data.maps
                 },
                 "tokens": token_configs
@@ -284,52 +299,93 @@ class LauncherWindow(QWidget):
             self.scanner.save_folder_config(folder_data.path, full_cfg)
         except StopIteration: pass
 
+    def run_ai_scan(self):
+        """Use computer vision to detect walls and 3D assets."""
+        folder_name = self.folder_combo.currentText().strip()
+        map_item = self.map_list.currentItem()
+        if not folder_name or not map_item: return
+        
+        folder_data = self.scanner.folders[folder_name]
+        try:
+            map_data = next(m for m in folder_data.maps if m.name == map_item.text())
+            
+            import cv2
+            import numpy as np
+            
+            # Load map for analysis
+            img = cv2.imread(map_data.path)
+            if img is None:
+                print(f"Error: Could not read image {map_data.path}")
+                return
+                
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Use adaptive thresholding to better handle varied lighting/styles
+            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+            
+            # Detect lines (Hough Transform) with stricter length requirements
+            lines = cv2.HoughLinesP(thresh, 1, np.pi/180, threshold=80, minLineLength=40, maxLineGap=20)
+            
+            detected_walls = []
+            # Base Perimeter
+            grid_w, grid_h = map_data.width_squares, map_data.height_squares
+            detected_walls.append({"start": [0, 0], "end": [grid_w, 0], "height": 4})
+            detected_walls.append({"start": [0, 0], "end": [0, grid_h], "height": 4})
+            detected_walls.append({"start": [grid_w, 0], "end": [grid_w, grid_h], "height": 4})
+            detected_walls.append({"start": [0, grid_h], "end": [grid_w, grid_h], "height": 4})
+
+            if lines is not None:
+                # Convert pixel lines to grid lines
+                for line in lines:
+                    x1, y1, x2, y2 = line[0]
+                    # Map to grid coords
+                    gx1 = (x1 / w) * grid_w
+                    gz1 = grid_h - ((y1 / h) * grid_h) # Invert Y to Z
+                    gx2 = (x2 / w) * grid_w
+                    gz2 = grid_h - ((y2 / h) * grid_h) # Invert Y to Z
+
+                    # Filter out very short segments that aren't structural
+                    grid_dist = math.sqrt((gx2-gx1)**2 + (gz2-gz1)**2)
+                    if grid_dist > 1.5: 
+                        detected_walls.append({
+                            "start": [gx1, gz1], 
+                            "end": [gx2, gz2], 
+                            "height": 3
+                        })
+            
+            map_data.scan_data = {"walls": detected_walls}
+            self._auto_save_config()
+            QMessageBox.information(self, "AI Scan Complete", 
+                f"Detected {len(detected_walls)} wall segments using CV analysis.\nLaunch in 3D mode to see results.")
+            
+        except Exception as e:
+            print(f"DEBUG: Error during AI scan: {e}")
+            QMessageBox.warning(self, "Scan Error", f"CV Analysis failed: {str(e)}")
+
     def handle_launch(self):
-        print(f"DEBUG: Launch button clicked")
         folder_name = self.folder_combo.currentText().strip()
         map_item = self.map_list.currentItem()
         
-        if not folder_name or not map_item: 
-            print(f"DEBUG: Missing selection. Folder: '{folder_name}', Map Item: {map_item}")
-            return
-        
-        if folder_name not in self.scanner.folders: 
-            print(f"DEBUG: folder_name '{folder_name}' not in scanner keys: {list(self.scanner.folders.keys())}")
-            return
+        if not folder_name or not map_item: return
+        if folder_name not in self.scanner.folders: return
         folder_data = self.scanner.folders[folder_name]
         
         try:
             map_name = map_item.text()
-            print(f"DEBUG: Attempting to launch {map_name} from {folder_name}")
             map_data = next(m for m in folder_data.maps if m.name == map_name)
             
-            # Sync UI to data
+            # Sync UI to data before last save
             map_data.width_squares = self.width_spin.value()
             map_data.height_squares = self.height_spin.value()
             map_data.scale = self.grid_scale_slider.value() / 100.0
             
             tokens_to_add = {}
-            token_configs_to_save = {}
-            
             for t, row in self.token_rows.items():
                 cfg = row.get_config()
                 if cfg["count"] > 0:
                     tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0)
-                token_configs_to_save[t.name] = cfg
             
-            print(f"DEBUG: Tokens to add: {len(tokens_to_add)}")
-            # Save persistence
-            full_cfg = {
-                "maps": {
-                    m.name: {"w": m.width_squares, "h": m.height_squares, "scale": m.scale}
-                    for m in folder_data.maps
-                },
-                "tokens": token_configs_to_save
-            }
-            self.scanner.save_folder_config(folder_data.path, full_cfg)
+            self._auto_save_config()
             
             use_3d = self.mode_3d_check.isChecked()
-            print(f"DEBUG: Calling on_launch. use_3d={use_3d}")
             self.on_launch(map_data, tokens_to_add, use_3d)
-        except Exception as e:
-            print(f"DEBUG: Exception during handle_launch: {e}")
+        except StopIteration: pass

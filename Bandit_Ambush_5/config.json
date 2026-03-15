@@ -3,12 +3,14 @@
         "Bandit Ambush - Summer - Day - 22x16 - 72 DPI.jpg": {
             "w": 12,
             "h": 12,
-            "scale": 1.0
+            "scale": 1.0,
+            "scan_data": {}
         },
         "Bandit Ambush - Summer - Night - 22x16 - 72 DPI.jpg": {
             "w": 30,
             "h": 30,
-            "scale": 1.0
+            "scale": 1.0,
+            "scan_data": {}
         }
     },
     "tokens": {

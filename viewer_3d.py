@@ -2,66 +2,115 @@ from ursina import *
 import json
 import sys
 import os
+import math
 from pathlib import Path
 
 class DNDToken3D(Entity):
     def __init__(self, texture_path, name, grid_x, grid_y, scale=1.0):
-        # Use load_texture for better absolute path handling
-        tex = load_texture(texture_path)
-        super().__init__(
+        # Convert path to posix for Ursina compatibility
+        p_path = Path(texture_path).absolute().as_posix()
+        super().__init__(position=(grid_x, 0, grid_y))
+        self.name = name
+        
+        # Robust texture loading
+        try:
+            tex = Texture(p_path)
+        except:
+            tex = None
+            print(f"Error: Could not load texture {p_path}")
+
+        self.token_base = Entity(
+            parent=self,
+            model='cube',
+            color=color.black,
+            scale=(0.85 * scale, 0.1, 0.85 * scale),
+            collider='box'
+        )
+        
+        self.front_face = Entity(
+            parent=self,
             model='quad',
             texture=tex,
             scale=(scale, scale),
-            position=(grid_x, 0.5, grid_y),
-            billboard=True,
+            y=scale/2 + 0.1,
+            z=-0.02,
             collider='box'
         )
-        self.name = name
+        self.back_face = Entity(
+            parent=self,
+            model='quad',
+            texture=tex,
+            scale=(scale, scale),
+            y=scale/2 + 0.1,
+            z=0.02,
+            rotation_y=180,
+            collider='box'
+        )
+        
+        self.front_face.parent_token = self
+        self.back_face.parent_token = self
+        self.token_base.parent_token = self
 
 class DNDMap3D:
     def __init__(self, config):
-        # Initialize Ursina with explicit settings
         self.app = Ursina(
-            title=f"D&D 3D: {config['map_name']}",
+            title=f"D&D 3D World: {config['map_name']}",
             development_mode=False,
             editor_ui_enabled=False
         )
         
-        width_sq = config['width_sq']
-        height_sq = config['height_sq']
-        map_scale = config['map_scale']
+        self.width_sq = config['width_sq']
+        self.height_sq = config['height_sq']
+        self.map_scale = config['map_scale']
         
-        map_tex = load_texture(config['map_path'])
-        
-        Sky()
-        DirectionalLight(y=2, z=-3, rotation=(45, 45, 45))
+        map_path = Path(config['map_path']).absolute().as_posix()
+        try:
+            map_tex = Texture(map_path)
+        except:
+            map_tex = None
+
+        Sky(color=color.black)
+        self.sun = DirectionalLight(y=30, z=-30, rotation=(45, 45, 0))
+        self.sun.shadows = True
         
         # Floor Plane
         self.floor = Entity(
             model='quad',
             texture=map_tex,
             rotation=(90, 0, 0),
-            scale=(width_sq * map_scale, height_sq * map_scale),
+            scale=(self.width_sq * self.map_scale, self.height_sq * self.map_scale),
             collider='box',
-            x=(width_sq * map_scale) / 2,
-            z=(height_sq * map_scale) / 2
+            x=(self.width_sq * self.map_scale) / 2,
+            z=(self.height_sq * self.map_scale) / 2,
+            receive_shadows=True
         )
         
-        # Grid overlay - use Grid model with correct subdivisions
+        # Interactive Grid
         self.grid = Entity(
-            model=Grid(width_sq, height_sq),
+            model=Grid(self.width_sq, self.height_sq),
             rotation=(90, 0, 0),
-            scale=(width_sq * map_scale, height_sq * map_scale),
+            scale=(self.width_sq * self.map_scale, self.height_sq * self.map_scale),
             position=self.floor.position,
-            color=color.black66,
+            color=color.rgba(255, 255, 255, 40),
             y=0.01
         )
         
-        # Camera
-        self.camera = EditorCamera()
-        self.camera.position = (width_sq/2, 20, -10)
-        self.camera.rotation_x = 45
+        # Walls
+        self.walls = []
+        if 'scan_data' in config and 'walls' in config['scan_data']:
+            for wall_data in config['scan_data']['walls']:
+                self.create_3d_wall(wall_data)
 
+        # Better Intuitive Camera
+        # EditorCamera is already very intuitive:
+        # - Right Click + Mouse Move: Rotate
+        # - Mouse Wheel: Zoom
+        # - Middle Click + Mouse Move: Pan
+        self.cam = EditorCamera()
+        self.cam.position = (self.width_sq*self.map_scale/2, 20, -10)
+        self.cam.rotation_x = 45
+
+        # Tokens
         self.tokens = []
         start_x = 0.5
         for token_name, data in config['tokens'].items():
@@ -70,14 +119,43 @@ class DNDMap3D:
                 t = DNDToken3D(
                     texture_path=path,
                     name=token_name,
-                    grid_x=start_x,
-                    grid_y=0.5,
-                    scale=token_scale * map_scale
+                    grid_x=start_x * self.map_scale,
+                    grid_y=0.5 * self.map_scale,
+                    scale=token_scale * self.map_scale
                 )
                 self.tokens.append(t)
-                start_x += 1.0
+                start_x += 1.2
 
         self.selected_token = None
+        self.dragging = False
+
+    def create_3d_wall(self, wall_data):
+        sx, sy = wall_data['start']
+        ex, ey = wall_data['end']
+        h = wall_data.get('height', 3)
+        
+        dist = math.sqrt((ex - sx)**2 + (ey - sy)**2)
+        center_x = (sx + ex) / 2
+        center_z = (sy + ey) / 2
+        
+        # Solid brick walls
+        wall = Entity(
+            model='cube',
+            texture='brick',
+            color=color.light_gray,
+            scale=(dist * self.map_scale, h, 0.15),
+            position=(center_x * self.map_scale, h/2, center_z * self.map_scale),
+            rotation_y=-math.degrees(math.atan2(ey - sy, ex - sx)),
+            collider='box',
+            cast_shadows=True
+        )
+        self.walls.append(wall)
+
+    def update(self):
+        if self.dragging and self.selected_token and mouse.world_point:
+            self.selected_token.x = mouse.world_point.x
+            self.selected_token.z = mouse.world_point.z
+            self.selected_token.y = 0.5
 
     def input(self, key):
         if key == 'g':
@@ -86,19 +164,29 @@ class DNDMap3D:
             self.app.quit()
             
         if key == 'left mouse down':
-            if mouse.hovered_entity and isinstance(mouse.hovered_entity, DNDToken3D):
-                self.selected_token = mouse.hovered_entity
+            if mouse.hovered_entity:
+                hit = mouse.hovered_entity
+                parent = getattr(hit, 'parent_token', None)
+                if parent:
+                    self.selected_token = parent
+                    self.dragging = True
+                    self.selected_token.token_base.color = color.yellow
+                else:
+                    self.selected_token = None
             else:
                 self.selected_token = None
 
-        if key == 'right mouse down' and self.selected_token:
-            if mouse.world_point:
-                # Snap logic for Ursina coordinates
-                self.selected_token.x = round(mouse.world_point.x - 0.5) + 0.5
-                self.selected_token.z = round(mouse.world_point.z - 0.5) + 0.5
+        if key == 'left mouse up' and self.selected_token:
+            self.dragging = False
+            self.selected_token.token_base.color = color.black
+            # Snap to grid logic
+            ms = self.map_scale
+            self.selected_token.x = round(self.selected_token.x / ms - 0.5) * ms + ms/2
+            self.selected_token.z = round(self.selected_token.z / ms - 0.5) * ms + ms/2
+            self.selected_token.y = 0
 
     def run(self):
-        self.app.input = self.input
+        self.app.update = self.update
         self.app.run()
 
 if __name__ == "__main__":

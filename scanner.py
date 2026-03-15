@@ -14,6 +14,7 @@ class MapData:
     width_squares: int = 30
     height_squares: int = 20
     scale: float = 1.0
+    scan_data: dict = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class TokenData:
@@ -62,6 +63,8 @@ class DNDScanner:
                     config = json.load(f)
             except: pass
 
+        maps_config = config.get("maps", {})
+
         for root, dirs, files in os.walk(folder_path):
             dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
             for file_name in files:
@@ -69,37 +72,42 @@ class DNDScanner:
                 lower_name = file_name.lower()
                 
                 if lower_name.endswith(('.jpg', '.jpeg', '.png')):
-                    match = re.search(r'(\d+)\s*x\s*(\d+)', file_name)
+                    # Check if it's already in config
+                    cfg = maps_config.get(file_name)
                     
-                    if match:
-                        w, h = int(match.group(1)), int(match.group(2))
-                    else:
-                        # Attempt to calculate sane defaults based on pixels
-                        try:
-                            with Image.open(file_path) as img:
-                                img_w, img_h = img.size
-                                # Aim for 30 squares on the longest side
-                                if img_w >= img_h:
-                                    w = 30
-                                    h = max(1, int(30 * (img_h / img_w)))
-                                else:
-                                    h = 30
-                                    w = max(1, int(30 * (img_w / img_h)))
-                        except:
-                            w, h = 30, 20
-
-                    # Check if map or token (tokens usually don't have dimensions in name)
-                    # For safety, if it's very small or named as token, treat as token
-                    if match or "map" in lower_name or "ambush" in lower_name or "treetops" in lower_name:
-                        cfg = config.get("maps", {}).get(file_name, {})
+                    if cfg:
+                        # Use config values
                         data.maps.append(MapData(
-                            file_path, file_name, 
-                            cfg.get("w", w), cfg.get("h", h),
-                            cfg.get("scale", cfg.get("scale", 1.0))
+                            path=file_path,
+                            name=file_name,
+                            width_squares=cfg.get("w", 30),
+                            height_squares=cfg.get("h", 20),
+                            scale=cfg.get("scale", 1.0),
+                            scan_data=cfg.get("scan_data", {})
                         ))
                     else:
-                        if not file_name.startswith('.'):
-                            data.tokens.append(TokenData(file_path, file_name))
+                        # Try to detect if it's a map or token
+                        match = re.search(r'(\d+)\s*x\s*(\d+)', file_name)
+                        is_map = match or any(x in lower_name for x in ["map", "ambush", "treetops", "floor", "room"])
+                        
+                        if is_map:
+                            if match:
+                                w, h = int(match.group(1)), int(match.group(2))
+                            else:
+                                try:
+                                    with Image.open(file_path) as img:
+                                        iw, ih = img.size
+                                        if iw >= ih:
+                                            w, h = 30, max(1, int(30 * (ih / iw)))
+                                        else:
+                                            h, w = 30, max(1, int(30 * (iw / ih)))
+                                except:
+                                    w, h = 30, 20
+                            
+                            data.maps.append(MapData(file_path, file_name, w, h))
+                        else:
+                            if not file_name.startswith('.'):
+                                data.tokens.append(TokenData(file_path, file_name))
         return data
 
     def save_folder_config(self, folder_path: str, config_data: dict):

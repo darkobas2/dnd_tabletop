@@ -41,6 +41,7 @@ class DNDApp:
                 "width_sq": map_data.width_squares,
                 "height_sq": map_data.height_squares,
                 "map_scale": map_data.scale,
+                "scan_data": map_data.scan_data,
                 "tokens": token_cfg
             }
             
