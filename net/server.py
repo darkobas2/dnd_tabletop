@@ -148,23 +148,109 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-// ---- Pan & Zoom (mouse + touch) ----
+// ---- Pan & Zoom + Token Dragging (mouse + touch) ----
 let camX = 0, camY = 0, camZoom = 1;
 let dragging = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY = 0;
 let pinchDist0 = null, pinchZoom0 = 1;
 
+// Token dragging state
+let dragToken = null;       // creature being dragged (or null for pan)
+let dragTokenGX = 0, dragTokenGY = 0;  // current grid pos while dragging
+
+function screenToMap(sx, sy) {
+  // Convert screen coords to map coords (pixels in map space)
+  return { x: (sx - camX) / camZoom, y: (sy - camY) / camZoom };
+}
+
+function hitTestToken(sx, sy) {
+  // Returns the first player creature under screen coords, or null
+  if (!state) return null;
+  var mp = screenToMap(sx, sy);
+  var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+  var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
+  var gridW = state.map_width_sq || 30;
+  var gridH = state.map_height_sq || 20;
+  var cellW = mapW / gridW;
+  var cellH = mapH / gridH;
+  var creatures = state.creatures || [];
+  // Check in reverse order (topmost first)
+  for (var i = creatures.length - 1; i >= 0; i--) {
+    var c = creatures[i];
+    if (!c.is_player) continue;
+    var cx = (c.position[0] + 0.5) * cellW;
+    var cy = (c.position[1] + 0.5) * cellH;
+    var radius = cellW * 0.42 * (c.token_scale || 1.0);
+    var dx = mp.x - cx, dy = mp.y - cy;
+    if (dx * dx + dy * dy <= radius * radius) return c;
+  }
+  return null;
+}
+
 canvas.addEventListener("mousedown", function(e) {
-  dragging = true; dragStartX = e.clientX; dragStartY = e.clientY;
-  camStartX = camX; camStartY = camY;
+  var token = hitTestToken(e.clientX, e.clientY);
+  if (token) {
+    dragToken = token;
+    dragTokenGX = token.position[0];
+    dragTokenGY = token.position[1];
+    canvas.style.cursor = "grabbing";
+  } else {
+    dragging = true; dragStartX = e.clientX; dragStartY = e.clientY;
+    camStartX = camX; camStartY = camY;
+  }
 });
 canvas.addEventListener("mousemove", function(e) {
-  if (!dragging) return;
+  if (dragToken) {
+    // Move the dragged token to follow cursor
+    var mp = screenToMap(e.clientX, e.clientY);
+    var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+    var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
+    var gridW = state.map_width_sq || 30;
+    var gridH = state.map_height_sq || 20;
+    var cellW = mapW / gridW;
+    var cellH = mapH / gridH;
+    dragTokenGX = mp.x / cellW - 0.5;
+    dragTokenGY = mp.y / cellH - 0.5;
+    // Temporarily update creature position for rendering
+    dragToken.position = [dragTokenGX, dragTokenGY];
+    render();
+    return;
+  }
+  if (!dragging) {
+    // Show grab cursor when hovering over player tokens
+    var token = hitTestToken(e.clientX, e.clientY);
+    canvas.style.cursor = token ? "grab" : "default";
+    return;
+  }
   camX = camStartX + (e.clientX - dragStartX);
   camY = camStartY + (e.clientY - dragStartY);
   render();
 });
-canvas.addEventListener("mouseup", function() { dragging = false; });
-canvas.addEventListener("mouseleave", function() { dragging = false; });
+canvas.addEventListener("mouseup", function(e) {
+  if (dragToken) {
+    // Snap to grid and send move to server
+    var gx = Math.round(dragTokenGX);
+    var gy = Math.round(dragTokenGY);
+    dragToken.position = [gx, gy];
+    sendTokenMove(dragToken.id, gx, gy);
+    dragToken = null;
+    canvas.style.cursor = "default";
+    render();
+    return;
+  }
+  dragging = false;
+});
+canvas.addEventListener("mouseleave", function() {
+  if (dragToken) {
+    var gx = Math.round(dragTokenGX);
+    var gy = Math.round(dragTokenGY);
+    dragToken.position = [gx, gy];
+    sendTokenMove(dragToken.id, gx, gy);
+    dragToken = null;
+    canvas.style.cursor = "default";
+    render();
+  }
+  dragging = false;
+});
 canvas.addEventListener("wheel", function(e) {
   e.preventDefault();
   var factor = e.deltaY < 0 ? 1.1 : 0.9;
@@ -176,14 +262,21 @@ canvas.addEventListener("wheel", function(e) {
   render();
 }, { passive: false });
 
-// Touch pan & pinch zoom
+// Touch: pan, pinch zoom, and token dragging
 canvas.addEventListener("touchstart", function(e) {
   if (e.touches.length === 1) {
-    dragging = true;
-    dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY;
-    camStartX = camX; camStartY = camY;
+    var token = hitTestToken(e.touches[0].clientX, e.touches[0].clientY);
+    if (token) {
+      dragToken = token;
+      dragTokenGX = token.position[0];
+      dragTokenGY = token.position[1];
+    } else {
+      dragging = true;
+      dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY;
+      camStartX = camX; camStartY = camY;
+    }
   } else if (e.touches.length === 2) {
-    dragging = false;
+    dragging = false; dragToken = null;
     var dx = e.touches[1].clientX - e.touches[0].clientX;
     var dy = e.touches[1].clientY - e.touches[0].clientY;
     pinchDist0 = Math.hypot(dx, dy);
@@ -192,7 +285,18 @@ canvas.addEventListener("touchstart", function(e) {
 }, { passive: true });
 canvas.addEventListener("touchmove", function(e) {
   e.preventDefault();
-  if (e.touches.length === 1 && dragging) {
+  if (e.touches.length === 1 && dragToken) {
+    var mp = screenToMap(e.touches[0].clientX, e.touches[0].clientY);
+    var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+    var gridW = state.map_width_sq || 30;
+    var gridH = state.map_height_sq || 20;
+    var cellW = mapW / gridW;
+    var cellH = (state.map_height_px || (mapImg ? mapImg.naturalHeight : 600)) / gridH;
+    dragTokenGX = mp.x / cellW - 0.5;
+    dragTokenGY = mp.y / cellH - 0.5;
+    dragToken.position = [dragTokenGX, dragTokenGY];
+    render();
+  } else if (e.touches.length === 1 && dragging) {
     camX = camStartX + (e.touches[0].clientX - dragStartX);
     camY = camStartY + (e.touches[0].clientY - dragStartY);
     render();
@@ -204,7 +308,23 @@ canvas.addEventListener("touchmove", function(e) {
     render();
   }
 }, { passive: false });
-canvas.addEventListener("touchend", function() { dragging = false; pinchDist0 = null; });
+canvas.addEventListener("touchend", function() {
+  if (dragToken) {
+    var gx = Math.round(dragTokenGX);
+    var gy = Math.round(dragTokenGY);
+    dragToken.position = [gx, gy];
+    sendTokenMove(dragToken.id, gx, gy);
+    dragToken = null;
+    render();
+  }
+  dragging = false; pinchDist0 = null;
+});
+
+function sendTokenMove(creatureId, gx, gy) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "token_move", id: creatureId, gx: gx, gy: gy }));
+  }
+}
 
 // ---- Map image loading ----
 function loadMap() {
@@ -576,7 +696,7 @@ class PlayerViewServer:
         server.stop()
     """
 
-    def __init__(self, port: int = 8080):
+    def __init__(self, port: int = 8080, on_token_moved=None):
         self.port = port
         self._encounter: Optional[Any] = None  # EncounterState
         self._map_path: Optional[str] = None
@@ -592,6 +712,7 @@ class PlayerViewServer:
         self._map_image_height: int = 0
         self._lock = threading.Lock()
         self._qr_path: Optional[str] = None
+        self._on_token_moved = on_token_moved  # callback(creature_id, gx, gy)
 
     # -- Public API --------------------------------------------------------
 
@@ -787,6 +908,33 @@ class PlayerViewServer:
             logger.warning("QR generation failed: %s", e)
             return ""
 
+    def _handle_player_token_move(self, msg: dict) -> None:
+        """Process a token_move message from a player client."""
+        creature_id = msg.get("id")
+        gx = msg.get("gx")
+        gy = msg.get("gy")
+        if creature_id is None or gx is None or gy is None:
+            return
+
+        with self._lock:
+            enc = self._encounter
+        if not enc:
+            return
+
+        # Only allow moving player characters
+        creature = enc.get_creature(creature_id)
+        if not creature or not creature.is_player:
+            return
+
+        creature.position = (int(round(gx)), int(round(gy)))
+
+        # Notify the DM viewer
+        if self._on_token_moved:
+            self._on_token_moved(creature_id, int(round(gx)), int(round(gy)))
+
+        # Broadcast updated state to all clients
+        self.broadcast_state()
+
     # -- Internal ----------------------------------------------------------
 
     def _run(self) -> None:
@@ -835,10 +983,14 @@ class PlayerViewServer:
                 state["map_changed"] = True  # force map load on connect
                 await websocket.send(json.dumps(state))
 
-                # Keep connection alive; listen for any client messages
+                # Listen for player actions (token moves)
                 async for message in websocket:
-                    # Players are read-only for now; ignore messages
-                    pass
+                    try:
+                        msg = json.loads(message)
+                        if msg.get("type") == "token_move":
+                            server_self._handle_player_token_move(msg)
+                    except Exception as e:
+                        logger.debug("Bad client message: %s", e)
             except websockets.exceptions.ConnectionClosed:
                 pass
             except Exception as e:

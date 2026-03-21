@@ -1,11 +1,11 @@
 import os
 import json
-import math
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
-                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox, QMessageBox,
+                             QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
                              QLineEdit)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
+from PySide6.QtGui import QPixmap
 from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
 
@@ -92,6 +92,88 @@ class TokenConfigRow(QFrame):
             "is_player": self.player_check.isChecked(),
         }
 
+class PlayerSpriteRow(QFrame):
+    """Widget for a player character sprite — checkbox, preview, name, HP, AC, size."""
+    def __init__(self, token_data: TokenData, initial_enabled=False,
+                 initial_name="", initial_hp=20, initial_ac=12, initial_size=100):
+        super().__init__()
+        self.token_data = token_data
+        self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(5, 5, 5, 5)
+        outer.setSpacing(6)
+
+        # Checkbox to include this player
+        self.enabled_check = QCheckBox()
+        self.enabled_check.setChecked(initial_enabled)
+        outer.addWidget(self.enabled_check)
+
+        # Sprite preview thumbnail
+        preview = QLabel()
+        pix = QPixmap(token_data.path)
+        if not pix.isNull():
+            preview.setPixmap(pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            preview.setText("?")
+        preview.setFixedSize(50, 50)
+        preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        outer.addWidget(preview)
+
+        # Fields column
+        fields = QVBoxLayout()
+        fields.setSpacing(2)
+
+        row1 = QHBoxLayout()
+        row1.setSpacing(4)
+        row1.addWidget(QLabel("Name:"))
+        self.name_edit = QLineEdit()
+        short_name = extract_creature_name(token_data.name)
+        self.name_edit.setText(initial_name if initial_name else short_name)
+        self.name_edit.setPlaceholderText("Character name")
+        row1.addWidget(self.name_edit, 2)
+        fields.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.setSpacing(4)
+        row2.addWidget(QLabel("HP:"))
+        self.hp_spin = QSpinBox()
+        self.hp_spin.setRange(1, 9999)
+        self.hp_spin.setValue(initial_hp)
+        self.hp_spin.setFixedWidth(60)
+        row2.addWidget(self.hp_spin)
+
+        row2.addWidget(QLabel("AC:"))
+        self.ac_spin = QSpinBox()
+        self.ac_spin.setRange(0, 30)
+        self.ac_spin.setValue(initial_ac)
+        self.ac_spin.setFixedWidth(60)
+        row2.addWidget(self.ac_spin)
+
+        row2.addWidget(QLabel("Size:"))
+        self.size_slider = QSlider(Qt.Horizontal)
+        self.size_slider.setRange(20, 400)
+        self.size_slider.setValue(initial_size)
+        self.size_slider.setMinimumWidth(60)
+        row2.addWidget(self.size_slider, 1)
+        self.size_label = QLabel(f"{initial_size}%")
+        self.size_label.setFixedWidth(35)
+        self.size_slider.valueChanged.connect(lambda v: self.size_label.setText(f"{v}%"))
+        row2.addWidget(self.size_label)
+        fields.addLayout(row2)
+
+        outer.addLayout(fields, 1)
+
+    def get_config(self):
+        return {
+            "enabled": self.enabled_check.isChecked(),
+            "name": self.name_edit.text(),
+            "hp": self.hp_spin.value(),
+            "ac": self.ac_spin.value(),
+            "size": self.size_slider.value(),
+        }
+
+
 class LauncherWindow(QWidget):
     scanner_updated = Signal()
 
@@ -104,6 +186,7 @@ class LauncherWindow(QWidget):
         
         self._updating = False
         self.token_rows = {} # TokenData -> TokenConfigRow
+        self.player_rows = {} # TokenData -> PlayerSpriteRow
         
         main_layout = QVBoxLayout(self)
         
@@ -150,11 +233,6 @@ class LauncherWindow(QWidget):
         gs_row.addWidget(self.grid_scale_label)
         map_cfg_layout.addRow("Global Map Zoom:", gs_row)
         
-        self.ai_scan_btn = QPushButton("AI SCAN (Detect Walls/3D)")
-        self.ai_scan_btn.setStyleSheet("background-color: #9b59b6; color: white; font-weight: bold;")
-        self.ai_scan_btn.clicked.connect(self.run_ai_scan)
-        map_cfg_layout.addRow(self.ai_scan_btn)
-        
         main_layout.addWidget(map_cfg_frame)
         
         # 3. Character Setup
@@ -167,14 +245,24 @@ class LauncherWindow(QWidget):
         self.token_layout.setAlignment(Qt.AlignTop)
         self.token_scroll.setWidget(self.token_container)
         main_layout.addWidget(self.token_scroll)
-        
-        # Mode & Launch
+
+        # 4. Player Characters (from player_sprites/ folder)
+        main_layout.addWidget(QLabel("<h3>4. Player Characters</h3>"))
+        sprites_hint = QLabel("<small>Place player sprite PNGs in the <b>player_sprites/</b> folder</small>")
+        sprites_hint.setStyleSheet("color: #888;")
+        main_layout.addWidget(sprites_hint)
+
+        self.player_scroll = QScrollArea()
+        self.player_scroll.setWidgetResizable(True)
+        self.player_container = QWidget()
+        self.player_layout = QVBoxLayout(self.player_container)
+        self.player_layout.setAlignment(Qt.AlignTop)
+        self.player_scroll.setWidget(self.player_container)
+        main_layout.addWidget(self.player_scroll)
+
+        # Launch
         bottom_frame = QFrame()
         bottom_layout = QVBoxLayout(bottom_frame)
-        
-        self.mode_3d_check = QCheckBox("Launch in 3D Mode (Experimental Ursina Mode)")
-        self.mode_3d_check.setStyleSheet("font-weight: bold; font-size: 13px; color: #2c3e50;")
-        bottom_layout.addWidget(self.mode_3d_check)
 
         self.launch_btn = QPushButton("LAUNCH INTERACTIVE SESSION")
         self.launch_btn.clicked.connect(self.handle_launch)
@@ -220,6 +308,7 @@ class LauncherWindow(QWidget):
             self.folder_combo.setCurrentIndex(0)
         
         self._updating = False
+        self._rebuild_player_sprites()
         # Use QTimer to ensure the combo box index change signals have fired
         QTimer.singleShot(0, lambda: self.update_folder_selection(self.folder_combo.currentIndex()))
 
@@ -281,8 +370,11 @@ class LauncherWindow(QWidget):
             self.token_rows[t] = row
 
         self._updating = False
-        
-        # 5. Trigger map config load for the first map
+
+        # 5. Rebuild player sprites with per-encounter config
+        self._rebuild_player_sprites()
+
+        # 6. Trigger map config load for the first map
         if self.map_list.count() > 0:
             self.map_list.setCurrentRow(0)
 
@@ -313,6 +405,53 @@ class LauncherWindow(QWidget):
             self.height_spin.blockSignals(False)
             self.grid_scale_slider.blockSignals(False)
         except StopIteration: pass
+
+    def _rebuild_player_sprites(self):
+        """Rebuild the player sprites list from scanner."""
+        # Clear existing rows
+        while self.player_layout.count():
+            item = self.player_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().setParent(None)
+                item.widget().deleteLater()
+        self.player_rows = {}
+
+        # Load saved player config from current encounter folder
+        saved_players = {}
+        folder_name = self.folder_combo.currentText().strip()
+        if folder_name and folder_name in self.scanner.folders:
+            folder_data = self.scanner.folders[folder_name]
+            config_path = os.path.join(folder_data.path, "config.json")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        saved_players = json.load(f).get("player_sprites", {})
+                except:
+                    pass
+
+        if not self.scanner.player_sprites:
+            empty_label = QLabel("<i>No sprites found. Add PNGs to player_sprites/ folder.</i>")
+            empty_label.setStyleSheet("color: #666; padding: 10px;")
+            self.player_layout.addWidget(empty_label)
+            return
+
+        for sprite in self.scanner.player_sprites:
+            cfg = saved_players.get(sprite.name, {})
+            row = PlayerSpriteRow(
+                sprite,
+                initial_enabled=cfg.get("enabled", False),
+                initial_name=cfg.get("name", ""),
+                initial_hp=cfg.get("hp", 20),
+                initial_ac=cfg.get("ac", 12),
+                initial_size=cfg.get("size", 100),
+            )
+            row.enabled_check.toggled.connect(self._auto_save_config)
+            row.name_edit.textChanged.connect(self._auto_save_config)
+            row.hp_spin.valueChanged.connect(self._auto_save_config)
+            row.ac_spin.valueChanged.connect(self._auto_save_config)
+            row.size_slider.valueChanged.connect(self._auto_save_config)
+            self.player_layout.addWidget(row)
+            self.player_rows[sprite] = row
 
     def _auto_save_config(self):
         if self._updating: return
@@ -345,6 +484,11 @@ class LauncherWindow(QWidget):
                 except Exception:
                     pass
 
+            # Gather player sprite configs
+            player_configs = {}
+            for sprite, row in self.player_rows.items():
+                player_configs[sprite.name] = row.get_config()
+
             full_cfg = {
                 "maps": {
                     m.name: {
@@ -355,180 +499,14 @@ class LauncherWindow(QWidget):
                     }
                     for m in folder_data.maps
                 },
-                "tokens": token_configs
+                "tokens": token_configs,
+                "player_sprites": player_configs,
             }
             # Preserve creatures saved by the viewer
             if "creatures" in existing_cfg:
                 full_cfg["creatures"] = existing_cfg["creatures"]
             self.scanner.save_folder_config(folder_data.path, full_cfg)
         except StopIteration: pass
-
-    def run_ai_scan(self):
-        """Use computer vision to detect walls, structures, and terrain for 3D rendering."""
-        folder_name = self.folder_combo.currentText().strip()
-        map_item = self.map_list.currentItem()
-        if not folder_name or not map_item:
-            return
-
-        folder_data = self.scanner.folders[folder_name]
-        try:
-            map_data = next(m for m in folder_data.maps if m.name == map_item.text())
-
-            import cv2
-            import numpy as np
-
-            img = cv2.imread(map_data.path)
-            if img is None:
-                print(f"Error: Could not read image {map_data.path}")
-                return
-
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img_h, img_w = img.shape[:2]
-            grid_w, grid_h = map_data.width_squares, map_data.height_squares
-
-            def px_to_grid(px_x, px_y):
-                """Convert pixel coords to grid coords (Y inverted for 3D Z)."""
-                gx = (px_x / img_w) * grid_w
-                gz = grid_h - ((px_y / img_h) * grid_h)
-                return gx, gz
-
-            # ========== 1. Wall detection (Canny + Hough) ==========
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            edges = cv2.Canny(blurred, 50, 150)
-            # Dilate edges to connect nearby segments
-            kernel = np.ones((3, 3), np.uint8)
-            edges = cv2.dilate(edges, kernel, iterations=1)
-
-            lines = cv2.HoughLinesP(edges, 1, np.pi / 180,
-                                     threshold=60, minLineLength=30, maxLineGap=15)
-
-            detected_walls = []
-            # Perimeter walls
-            for s, e in [([0, 0], [grid_w, 0]), ([0, 0], [0, grid_h]),
-                         ([grid_w, 0], [grid_w, grid_h]), ([0, grid_h], [grid_w, grid_h])]:
-                detected_walls.append({"start": s, "end": e, "height": 4})
-
-            if lines is not None:
-                # Merge nearby parallel line segments
-                merged = []
-                for line in lines:
-                    x1, y1, x2, y2 = line[0]
-                    gx1, gz1 = px_to_grid(x1, y1)
-                    gx2, gz2 = px_to_grid(x2, y2)
-                    dist = math.sqrt((gx2 - gx1) ** 2 + (gz2 - gz1) ** 2)
-                    if dist > 1.5:
-                        merged.append({"start": [gx1, gz1], "end": [gx2, gz2], "height": 3})
-                detected_walls.extend(merged)
-
-            # ========== 2. Structure detection (dark regions = walls/pillars) ==========
-            structures = []
-            # Threshold dark areas (likely walls/structures in map art)
-            _, dark_mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
-            dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-            dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-
-            contours, _ = cv2.findContours(dark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cell_px_w = img_w / grid_w
-            cell_px_h = img_h / grid_h
-            min_area = cell_px_w * cell_px_h * 0.5  # At least half a grid cell
-
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area < min_area:
-                    continue
-
-                x, y, bw, bh = cv2.boundingRect(cnt)
-                gx, gz = px_to_grid(x + bw / 2, y + bh / 2)
-                g_size_w = (bw / img_w) * grid_w
-                g_size_h = (bh / img_h) * grid_h
-
-                # Classify: small square = pillar, long thin = wall already handled, large = platform
-                aspect = max(g_size_w, g_size_h) / max(min(g_size_w, g_size_h), 0.1)
-                avg_size = (g_size_w + g_size_h) / 2
-
-                if avg_size < 1.5 and aspect < 2:
-                    # Small structure — pillar
-                    structures.append({
-                        "type": "pillar", "x": gx, "z": gz,
-                        "h": 3, "size": avg_size, "color": [80, 75, 70]
-                    })
-                elif aspect < 3 and avg_size > 2:
-                    # Large blocky region — raised platform/rock
-                    structures.append({
-                        "type": "platform", "x": gx, "z": gz,
-                        "h": 1.5, "size": avg_size, "color": [70, 65, 55]
-                    })
-
-            # ========== 3. Heightmap from brightness (terrain elevation) ==========
-            heightmap = []
-            # Divide map into grid cells, analyze average brightness
-            for gy in range(grid_h):
-                for gx in range(grid_w):
-                    # Pixel region for this grid cell
-                    px_x1 = int(gx * cell_px_w)
-                    px_y1 = int((grid_h - 1 - gy) * cell_px_h)  # Invert Y
-                    px_x2 = int(px_x1 + cell_px_w)
-                    px_y2 = int(px_y1 + cell_px_h)
-                    px_x2 = min(px_x2, img_w)
-                    px_y2 = min(px_y2, img_h)
-
-                    cell_region = gray[px_y1:px_y2, px_x1:px_x2]
-                    if cell_region.size == 0:
-                        continue
-                    avg_bright = float(np.mean(cell_region))
-
-                    # Very dark cells -> raised terrain (walls/rocks)
-                    if avg_bright < 40:
-                        heightmap.append({
-                            "x": gx, "z": gy, "w": 1, "d": 1,
-                            "h": 2.0, "color": [60, 55, 50]
-                        })
-                    elif avg_bright < 70:
-                        heightmap.append({
-                            "x": gx, "z": gy, "w": 1, "d": 1,
-                            "h": 0.8, "color": [75, 70, 60]
-                        })
-
-            # ========== Save results ==========
-            map_data.scan_data = {
-                "walls": detected_walls,
-                "structures": structures,
-                "heightmap": heightmap,
-            }
-            # Write scan data directly to config.json (don't rely on _auto_save_config
-            # which can be overwritten by watchdog-triggered rescan race conditions)
-            config_path = os.path.join(folder_data.path, "config.json")
-            try:
-                existing = {}
-                if os.path.exists(config_path):
-                    with open(config_path, 'r') as f:
-                        existing = json.load(f)
-                if "maps" not in existing:
-                    existing["maps"] = {}
-                if map_data.name not in existing["maps"]:
-                    existing["maps"][map_data.name] = {}
-                existing["maps"][map_data.name]["scan_data"] = map_data.scan_data
-                existing["maps"][map_data.name]["w"] = map_data.width_squares
-                existing["maps"][map_data.name]["h"] = map_data.height_squares
-                existing["maps"][map_data.name]["scale"] = map_data.scale
-                with open(config_path, 'w') as f:
-                    json.dump(existing, f, indent=4)
-            except Exception as e:
-                print(f"Warning: Could not save scan data: {e}")
-
-            summary = (
-                f"3D Scan Complete!\n\n"
-                f"Walls: {len(detected_walls)} segments\n"
-                f"Structures: {len(structures)} (pillars, platforms)\n"
-                f"Terrain blocks: {len(heightmap)} raised cells\n\n"
-                f"Launch in 3D mode to see the results."
-            )
-            QMessageBox.information(self, "AI 3D Scan Complete", summary)
-
-        except Exception as e:
-            print(f"DEBUG: Error during AI scan: {e}")
-            import traceback; traceback.print_exc()
-            QMessageBox.warning(self, "Scan Error", f"CV Analysis failed: {str(e)}")
 
     def handle_launch(self):
         folder_name = self.folder_combo.currentText().strip()
@@ -558,9 +536,19 @@ class LauncherWindow(QWidget):
                         "is_player": cfg.get("is_player", False),
                     }
                     tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
-            
+
+            # Add enabled player sprites (always count=1, is_player=True)
+            for sprite, row in self.player_rows.items():
+                cfg = row.get_config()
+                if cfg["enabled"]:
+                    creature_cfg = {
+                        "name": cfg["name"],
+                        "hp": cfg["hp"],
+                        "ac": cfg["ac"],
+                        "is_player": True,
+                    }
+                    tokens_to_add[sprite] = (1, cfg["size"] / 100.0, creature_cfg)
+
             self._auto_save_config()
-            
-            use_3d = self.mode_3d_check.isChecked()
-            self.on_launch(map_data, tokens_to_add, use_3d)
+            self.on_launch(map_data, tokens_to_add)
         except StopIteration: pass

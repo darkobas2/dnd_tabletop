@@ -115,7 +115,7 @@ class MapViewer(QMainWindow):
 
         try:
             from net.server import PlayerViewServer
-            self._server = PlayerViewServer(port=8080)
+            self._server = PlayerViewServer(port=8080, on_token_moved=self._on_player_token_moved)
             if self.encounter:
                 map_path = ""
                 if self.view.base_pixmap:
@@ -153,6 +153,20 @@ class MapViewer(QMainWindow):
                     self.view.width_sq, self.view.height_sq
                 )
             self._server.broadcast_state()
+
+    def _on_player_token_moved(self, creature_id, gx, gy):
+        """Called from server thread when a player moves their token via web view."""
+        # Use QTimer to safely update from the server's background thread
+        QTimer.singleShot(0, lambda: self._apply_player_move(creature_id, gx, gy))
+
+    def _apply_player_move(self, creature_id, gx, gy):
+        """Apply a player's token move to the 2D view (main thread)."""
+        for token in self.view.token_items:
+            if token.creature and token.creature.id == creature_id:
+                token.creature.position = (gx, gy)
+                token.setPos(gx * self.view.grid_size, gy * self.view.grid_size)
+                break
+        self.schedule_save()
 
     def _show_qr(self):
         """Show QR code in a dialog."""

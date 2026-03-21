@@ -28,22 +28,30 @@ class FolderData:
     maps: List[MapData] = field(default_factory=list)
     tokens: List[TokenData] = field(default_factory=list)
 
+SKIP_FOLDERS = {'__pycache__', 'player_sprites', 'core', 'ui', 'viewer', 'net'}
+
 class DNDScanner:
+    PLAYER_SPRITES_DIR = "player_sprites"
+
     def __init__(self, base_path: str):
         self.base_path = base_path
         self.folders: Dict[str, FolderData] = {}
+        self.player_sprites: List[TokenData] = []
         self.on_update_callback = None
 
     def scan_all(self):
         new_folders = {}
         if not os.path.exists(self.base_path):
             self.folders = {}
+            self.player_sprites = []
             return
-            
+
+        self.player_sprites = self._scan_player_sprites()
+
         for folder_name in os.listdir(self.base_path):
             folder_path = os.path.join(self.base_path, folder_name)
             if os.path.isdir(folder_path):
-                if folder_name == '__pycache__' or folder_name.startswith('.'):
+                if folder_name in SKIP_FOLDERS or folder_name.startswith('.'):
                     continue
                 new_folders[folder_name] = self.scan_folder(folder_path)
         
@@ -109,6 +117,20 @@ class DNDScanner:
                             if not file_name.startswith('.'):
                                 data.tokens.append(TokenData(file_path, file_name))
         return data
+
+    def _scan_player_sprites(self) -> List[TokenData]:
+        """Scan the player_sprites/ folder for character sprite PNGs."""
+        sprites_dir = os.path.join(self.base_path, self.PLAYER_SPRITES_DIR)
+        if not os.path.isdir(sprites_dir):
+            return []
+        sprites = []
+        for fname in sorted(os.listdir(sprites_dir)):
+            if fname.lower().endswith(('.png', '.jpg', '.jpeg')) and not fname.startswith('.'):
+                sprites.append(TokenData(
+                    path=os.path.join(sprites_dir, fname),
+                    name=fname
+                ))
+        return sprites
 
     def save_folder_config(self, folder_path: str, config_data: dict):
         config_path = os.path.join(folder_path, "config.json")

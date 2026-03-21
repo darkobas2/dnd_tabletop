@@ -1,7 +1,7 @@
 # D&D Interactive Tabletop Simulator
 
 ## Project Overview
-A real-time D&D tabletop simulator with dual rendering (2D PySide6 + 3D Ursina/Panda3D), automated map/token scanning, AI-powered wall detection, and full combat mechanics (dice, initiative, HP/conditions tracking). The goal is a fully playable virtual tabletop that feels like a physical miniatures game.
+A real-time D&D tabletop simulator with 2D PySide6 rendering, automated map/token scanning, interactive web-based player view, and full combat mechanics (dice, initiative, HP/conditions tracking). The goal is a fully playable virtual tabletop that feels like a physical miniatures game.
 
 ## Architecture
 
@@ -22,23 +22,22 @@ ui/                — PySide6 widgets and theme
 viewer/            — 2D map rendering
   viewer_2d.py     — QMainWindow with QGraphicsView, dockable combat panels
   token_item.py    — Draggable tokens with HP bars, conditions, context menus
-viewer_3d/         — 3D rendering (placeholder for future split)
-net/               — Networking (placeholder for future WebSocket implementation)
+net/               — Networking (WebSocket + HTTP player view server)
+  server.py        — PlayerViewServer: interactive web player view with token dragging
+player_sprites/    — Player character sprite PNGs (shared across encounters)
 main.py            — App orchestrator
 scanner.py         — Filesystem scanner + watchdog monitor
-launcher.py        — Adventure/map/token selection GUI
-ipc_bridge.py      — TCP socket IPC between Qt parent and Ursina 3D subprocess
-viewer_3d.py       — 3D Ursina viewer (subprocess, uses IPC bridge)
+launcher.py        — Adventure/map/token/player-character selection GUI
 ```
 
 ### Data Flow
 ```
-Filesystem → DNDScanner → LauncherWindow → [2D MapViewer | 3D DNDMap3D subprocess]
-                ↑                ↓                ↓              ↑
-           Watchdog FS     config.json     EncounterState    IPCBridge
-                                                ↓
-                                          Combat Panels
-                                    (Dice, Initiative, Log)
+Filesystem → DNDScanner → LauncherWindow → 2D MapViewer
+                ↑                ↓                ↓
+           Watchdog FS     config.json     EncounterState → PlayerViewServer (WebSocket)
+                                                ↓                    ↕
+                                          Combat Panels        Player Browsers
+                                    (Dice, Initiative, Log)  (move tokens via web)
 ```
 
 ### Adventure Folder Structure
@@ -52,15 +51,14 @@ Encounter_Name/
 
 ## Tech Stack
 - **GUI:** PySide6 (Qt6)
-- **3D Engine:** Ursina (Panda3D wrapper)
-- **Computer Vision:** OpenCV (wall/structure detection)
+- **Player View:** WebSocket + HTTP (websockets library), HTML5 Canvas
 - **Images:** Pillow
 - **File Monitoring:** watchdog
 - **Python:** 3.8+
 
 ## Key Conventions
-- Config is stored per-folder in `config.json` with maps and tokens sections
-- 3D viewer runs as a subprocess to avoid Qt/OpenGL conflicts — IPC via TCP socket
+- Config is stored per-folder in `config.json` with maps, tokens, and player_sprites sections
+- Player sprites live in `player_sprites/` folder at project root (shared across encounters)
 - Grid dimensions auto-calculated from image aspect ratio if not in filename
 - Token detection: PNGs without `WxH` pattern and without map keywords
 - Map detection: files with `WxH` in name OR containing "map", "ambush", "floor", "room"
@@ -68,29 +66,26 @@ Encounter_Name/
 - `core/` modules are pure Python with JSON serialization — no PySide6 imports
 - EncounterState is created per session and passed to the 2D viewer
 - Dark fantasy theme applied globally via `ui.theme.apply_theme(app)`
+- Player view: players can drag their own tokens (is_player=True), server relays to DM
 
 ## Development Guidelines
-- Keep 2D and 3D viewers feature-parallel where possible
 - Test with the Bandit_Ambush_5 encounter folder as reference
 - When adding new features, update config.json schema if persistence is needed
-- OpenCV scan results go into `scan_data` field per map in config.json
-- Ursina code must remain subprocess-safe (no shared state with Qt)
 - Right-click tokens for damage/heal/conditions/visibility context menu
 - Combat panels (dice, initiative, log) are QDockWidgets in the 2D viewer
 
 ## Subagents
-- **ursina-developer** — 3D engine specialist for viewer_3d.py and Ursina/Panda3D work
 - **graphic-designer** — Asset creation, UI/UX design, token/map art direction
 
 ## Current State
 - Single encounter (Bandit_Ambush_5) with 2 map variants and 3 token types
 - 2D viewer with grid, draggable tokens, HP bars, condition icons, context menus
-- 3D viewer with standee tokens, wall reconstruction, IPC bridge
+- Interactive player view: web-based, players can move their own tokens
+- Player sprites system: DM picks characters from player_sprites/ folder per encounter
 - Dice engine: parses 2d6+3, 1d20adv, 4d6kh3, complex expressions
 - Initiative tracker: roll, sort, advance/rewind turns, skip dead creatures
 - Combat log: timestamped, filterable by event type
 - Creature editor: full stat block dialog
 - Dark fantasy theme applied to all UI
-- AI scan implemented but scan_data mostly empty (needs tuning)
-- No networking yet (Phase 5), no fog of war painting yet (Phase 3)
-- No measurement ruler or AoE templates yet (Phase 2)
+- No fog of war painting yet
+- No measurement ruler or AoE templates yet
