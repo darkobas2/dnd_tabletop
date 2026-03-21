@@ -170,8 +170,9 @@ function hitTestToken(sx, sy) {
   var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
   var gridW = state.map_width_sq || 30;
   var gridH = state.map_height_sq || 20;
+  // Square cells based on width — matches DM view
   var cellW = mapW / gridW;
-  var cellH = mapH / gridH;
+  var cellH = cellW;
   var creatures = state.creatures || [];
   // Check in reverse order (topmost first)
   for (var i = creatures.length - 1; i >= 0; i--) {
@@ -203,11 +204,9 @@ canvas.addEventListener("mousemove", function(e) {
     // Move the dragged token to follow cursor
     var mp = screenToMap(e.clientX, e.clientY);
     var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
-    var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
     var gridW = state.map_width_sq || 30;
-    var gridH = state.map_height_sq || 20;
     var cellW = mapW / gridW;
-    var cellH = mapH / gridH;
+    var cellH = cellW;
     dragTokenGX = mp.x / cellW - 0.5;
     dragTokenGY = mp.y / cellH - 0.5;
     // Temporarily update creature position for rendering
@@ -289,9 +288,8 @@ canvas.addEventListener("touchmove", function(e) {
     var mp = screenToMap(e.touches[0].clientX, e.touches[0].clientY);
     var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
     var gridW = state.map_width_sq || 30;
-    var gridH = state.map_height_sq || 20;
     var cellW = mapW / gridW;
-    var cellH = (state.map_height_px || (mapImg ? mapImg.naturalHeight : 600)) / gridH;
+    var cellH = cellW;
     dragTokenGX = mp.x / cellW - 0.5;
     dragTokenGY = mp.y / cellH - 0.5;
     dragToken.position = [dragTokenGX, dragTokenGY];
@@ -380,8 +378,9 @@ function render() {
   var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
   var gridW = state.map_width_sq || 30;
   var gridH = state.map_height_sq || 20;
+  // Square cells based on width — matches DM view
   var cellW = mapW / gridW;
-  var cellH = mapH / gridH;
+  var cellH = cellW;
 
   // Map background
   if (mapLoaded && mapImg) {
@@ -400,7 +399,7 @@ function render() {
     ctx.lineTo(x * cellW, mapH);
     ctx.stroke();
   }
-  for (var y = 0; y <= gridH; y++) {
+  for (var y = 0; y * cellH <= mapH + 0.1; y++) {
     ctx.beginPath();
     ctx.moveTo(0, y * cellH);
     ctx.lineTo(mapW, y * cellH);
@@ -762,13 +761,13 @@ class PlayerViewServer:
             except Exception:
                 pass
 
-        # Shut down asyncio event loop (which stops the WS server)
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-
+        # Shut down asyncio event loop — the _ws_main coroutine checks
+        # self._running and will clean up the socket before exiting.
+        # We just need to wait for the thread to finish.
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5)
+            self._thread.join(timeout=10)
         self._thread = None
+        self._loop = None
 
         # Clean up QR temp file
         if self._qr_path and os.path.exists(self._qr_path):
@@ -778,7 +777,7 @@ class PlayerViewServer:
                 pass
             self._qr_path = None
 
-        logger.info("PlayerViewServer stopped")
+        print("[PlayerView] Server stopped")
 
     def broadcast_state(self) -> None:
         """Send current state to all connected WebSocket clients."""
@@ -1108,21 +1107,25 @@ class PlayerViewServer:
                 b"Not found",
             )
 
-        try:
-            ws_server = await websockets.asyncio.server.serve(
-                handler,
-                "0.0.0.0",
-                self.port,
-                process_request=process_request,
-            )
-            logger.info(
-                "HTTP + WebSocket server listening on 0.0.0.0:%d — %s",
-                self.port,
-                self.get_url(),
-            )
-        except OSError as e:
-            logger.error("Cannot bind port %d: %s", self.port, e)
-            return
+        # Try to bind, retrying briefly if port is still in TIME_WAIT
+        ws_server = None
+        for attempt in range(5):
+            try:
+                ws_server = await websockets.asyncio.server.serve(
+                    handler,
+                    "0.0.0.0",
+                    self.port,
+                    process_request=process_request,
+                )
+                print(f"[PlayerView] Listening on 0.0.0.0:{self.port} — {self.get_url()}")
+                break
+            except OSError as e:
+                if attempt < 4:
+                    print(f"[PlayerView] Port {self.port} busy, retrying ({attempt+1}/5)...")
+                    await asyncio.sleep(1)
+                else:
+                    print(f"[PlayerView] Cannot bind port {self.port}: {e}")
+                    return
 
         # Run until stopped
         while self._running:
