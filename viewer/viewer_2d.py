@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QMainWindow,
                                 QDockWidget, QMenu, QInputDialog, QSplitter,
                                 QWidget, QVBoxLayout, QMenuBar)
 from PySide6.QtGui import QPixmap, QColor, QPen, QKeyEvent, QPainter, QAction
-from PySide6.QtCore import Qt, QPointF, QRectF, QTimer
+from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 
 from viewer.token_item import TokenItem
 
@@ -15,9 +15,13 @@ from viewer.token_item import TokenItem
 class MapViewer(QMainWindow):
     """Full-featured 2D map viewer with dockable combat panels."""
 
+    # Signal for cross-thread token moves from player view server
+    _player_move_signal = Signal(str, int, int)
+
     def __init__(self, map_path, width_sq, height_sq, tokens_to_add, map_scale=1.0,
                  encounter=None, folder_path=None):
         super().__init__()
+        self._player_move_signal.connect(self._apply_player_move)
         self.setWindowTitle("D&D Map Viewer")
 
         self.encounter = encounter
@@ -156,16 +160,22 @@ class MapViewer(QMainWindow):
 
     def _on_player_token_moved(self, creature_id, gx, gy):
         """Called from server thread when a player moves their token via web view."""
-        # Use QTimer to safely update from the server's background thread
-        QTimer.singleShot(0, lambda: self._apply_player_move(creature_id, gx, gy))
+        # Emit signal to safely cross from server thread to Qt main thread
+        self._player_move_signal.emit(creature_id, gx, gy)
 
     def _apply_player_move(self, creature_id, gx, gy):
         """Apply a player's token move to the 2D view (main thread)."""
+        print(f"[DM View] Applying player move: {creature_id} -> ({gx}, {gy})")
+        found = False
         for token in self.view.token_items:
             if token.creature and token.creature.id == creature_id:
                 token.creature.position = (gx, gy)
                 token.setPos(gx * self.view.grid_size, gy * self.view.grid_size)
+                found = True
+                print(f"[DM View] Token updated: {token.creature.name}")
                 break
+        if not found:
+            print(f"[DM View] WARNING: No token found for creature {creature_id}")
         self.schedule_save()
 
     def _show_qr(self):

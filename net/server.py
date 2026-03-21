@@ -914,23 +914,33 @@ class PlayerViewServer:
         gx = msg.get("gx")
         gy = msg.get("gy")
         if creature_id is None or gx is None or gy is None:
+            logger.info("token_move: missing fields in %s", msg)
             return
 
         with self._lock:
             enc = self._encounter
         if not enc:
+            logger.info("token_move: no encounter set")
             return
 
         # Only allow moving player characters
         creature = enc.get_creature(creature_id)
-        if not creature or not creature.is_player:
+        if not creature:
+            logger.info("token_move: creature %s not found", creature_id)
+            return
+        if not creature.is_player:
+            logger.info("token_move: creature %s is not a player", creature_id)
             return
 
-        creature.position = (int(round(gx)), int(round(gy)))
+        gx_int, gy_int = int(round(gx)), int(round(gy))
+        creature.position = (gx_int, gy_int)
+        print(f"[PlayerView] token_move: {creature.name} -> ({gx_int}, {gy_int})")
 
         # Notify the DM viewer
         if self._on_token_moved:
-            self._on_token_moved(creature_id, int(round(gx)), int(round(gy)))
+            self._on_token_moved(creature_id, gx_int, gy_int)
+        else:
+            print("[PlayerView] WARNING: no on_token_moved callback set")
 
         # Broadcast updated state to all clients
         self.broadcast_state()
@@ -987,10 +997,11 @@ class PlayerViewServer:
                 async for message in websocket:
                     try:
                         msg = json.loads(message)
+                        print(f"[PlayerView] WS received: {msg.get('type')} from {websocket.remote_address}")
                         if msg.get("type") == "token_move":
                             server_self._handle_player_token_move(msg)
                     except Exception as e:
-                        logger.debug("Bad client message: %s", e)
+                        print(f"[PlayerView] Bad client message: {e}")
             except websockets.exceptions.ConnectionClosed:
                 pass
             except Exception as e:
