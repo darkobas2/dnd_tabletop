@@ -163,21 +163,18 @@ function screenToMap(sx, sy) {
 }
 
 function hitTestToken(sx, sy) {
-  // Returns the first player creature under screen coords, or null
+  // Returns the first draggable creature (player or summon) under screen coords
   if (!state) return null;
   var mp = screenToMap(sx, sy);
   var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
-  var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
   var gridW = state.map_width_sq || 30;
-  var gridH = state.map_height_sq || 20;
-  // Square cells based on width — matches DM view
   var cellW = mapW / gridW;
   var cellH = cellW;
   var creatures = state.creatures || [];
-  // Check in reverse order (topmost first)
   for (var i = creatures.length - 1; i >= 0; i--) {
     var c = creatures[i];
-    if (!c.is_player) continue;
+    // Draggable: player characters and summoned creatures
+    if (!c.is_player && !c.summoned_by) continue;
     var cx = (c.position[0] + 0.5) * cellW;
     var cy = (c.position[1] + 0.5) * cellH;
     var radius = cellW * 0.42 * (c.token_scale || 1.0);
@@ -406,6 +403,106 @@ function render() {
     ctx.stroke();
   }
 
+  // Draw effects (below tokens)
+  var effects = state.effects || [];
+  var animTime = Date.now() / 1000;
+  for (var ei = 0; ei < effects.length; ei++) {
+    var eff = effects[ei];
+    var ecx = (eff.position[0] + 0.5) * cellW;
+    var ecy = (eff.position[1] + 0.5) * cellH;
+    var erad = eff.radius * cellW;
+
+    ctx.save();
+
+    // Animation opacity modulation
+    var effOpacity = eff.opacity || 0.35;
+    if (eff.animation === "pulse") {
+      effOpacity *= (0.7 + 0.3 * Math.sin(animTime * 2.5));
+    } else if (eff.animation === "flicker") {
+      effOpacity *= (0.65 + 0.35 * Math.sin(animTime * 8 + ei * 3.7));
+    }
+    ctx.globalAlpha = effOpacity;
+
+    // Swirl rotation
+    if (eff.animation === "swirl") {
+      ctx.translate(ecx, ecy);
+      ctx.rotate((animTime * 0.3) % (Math.PI * 2));
+      ctx.translate(-ecx, -ecy);
+    }
+
+    if (eff.shape === "circle") {
+      // Radial gradient circle
+      var grad = ctx.createRadialGradient(ecx, ecy, 0, ecx, ecy, erad);
+      grad.addColorStop(0, eff.color);
+      grad.addColorStop(0.7, eff.color);
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(ecx, ecy, erad, 0, Math.PI * 2);
+      ctx.fill();
+      // Border
+      ctx.strokeStyle = eff.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.globalAlpha = Math.min(1, effOpacity + 0.3);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (eff.shape === "cube") {
+      var side = eff.radius * cellW;
+      ctx.fillStyle = eff.color;
+      ctx.fillRect(ecx - side / 2, ecy - side / 2, side, side);
+      ctx.strokeStyle = eff.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.globalAlpha = Math.min(1, effOpacity + 0.3);
+      ctx.strokeRect(ecx - side / 2, ecy - side / 2, side, side);
+      ctx.setLineDash([]);
+    } else if (eff.shape === "cone") {
+      var coneAngle = (eff.rotation || 0) * Math.PI / 180;
+      var spread = Math.PI / 3;
+      ctx.fillStyle = eff.color;
+      ctx.beginPath();
+      ctx.moveTo(ecx, ecy);
+      ctx.arc(ecx, ecy, erad, coneAngle - spread / 2, coneAngle + spread / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = eff.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.globalAlpha = Math.min(1, effOpacity + 0.3);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (eff.shape === "line") {
+      var lineAngle = (eff.rotation || 0) * Math.PI / 180;
+      var lineLen = eff.radius * cellW;
+      var lineW = cellW * 0.6;
+      ctx.save();
+      ctx.translate(ecx, ecy);
+      ctx.rotate(lineAngle);
+      ctx.fillStyle = eff.color;
+      ctx.fillRect(0, -lineW / 2, lineLen, lineW);
+      ctx.strokeStyle = eff.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.globalAlpha = Math.min(1, effOpacity + 0.3);
+      ctx.strokeRect(0, -lineW / 2, lineLen, lineW);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Effect label
+    ctx.globalAlpha = Math.min(1, effOpacity + 0.4);
+    ctx.font = "600 " + Math.max(10, cellW * 0.2) + "px system-ui";
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 3;
+    ctx.fillText(eff.name, ecx, ecy - erad - 4);
+    ctx.shadowBlur = 0;
+
+    ctx.restore();
+  }
+
   // Draw tokens
   var creatures = state.creatures || [];
   for (var i = 0; i < creatures.length; i++) {
@@ -420,14 +517,34 @@ function render() {
 
     ctx.save();
 
-    // Glow for active creature
+    var isSummon = !!c.summoned_by;
+    var summonColor = c.summon_color || "#ffd700";
+
+    // Glow for active creature or summon aura
     if (isActive) {
       ctx.shadowColor = "#fbbf24";
       ctx.shadowBlur = 18;
+    } else if (isSummon) {
+      ctx.shadowColor = summonColor;
+      ctx.shadowBlur = 12;
+    }
+
+    // Summon outer glow ring
+    if (isSummon) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = summonColor;
+      ctx.globalAlpha = 0.5 + 0.2 * Math.sin(animTime * 3);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Draw token image or colored circle
     var tImg = ensureTokenImage(c);
+    var borderColor = c.is_player ? "#4ade80" : (isSummon ? summonColor : "#f87171");
+    if (isActive) borderColor = "#fbbf24";
+
     if (tImg) {
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -436,22 +553,36 @@ function render() {
       ctx.drawImage(tImg, cx - radius, cy - radius, radius * 2, radius * 2);
       ctx.restore();
       ctx.save();
-      // Border
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = c.is_player ? "#4ade80" : "#f87171";
-      if (isActive) { ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 3.5; }
+      ctx.lineWidth = isActive ? 3.5 : 2.5;
+      ctx.strokeStyle = borderColor;
       ctx.stroke();
     } else {
+      // No image — draw colored circle with initial
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = c.is_player ? "rgba(74,222,128,0.45)" : "rgba(248,113,113,0.45)";
-      ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = c.is_player ? "#4ade80" : "#f87171";
-      if (isActive) { ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 3.5; }
+      if (isSummon) {
+        ctx.fillStyle = summonColor;
+        ctx.globalAlpha = 0.5;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.fillStyle = c.is_player ? "rgba(74,222,128,0.45)" : "rgba(248,113,113,0.45)";
+        ctx.fill();
+      }
+      ctx.lineWidth = isActive ? 3.5 : 2.5;
+      ctx.strokeStyle = borderColor;
       ctx.stroke();
+      // Draw first letter for summons without images
+      if (isSummon || !c.token_url) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold " + Math.max(12, radius * 0.9) + "px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(c.name.charAt(0).toUpperCase(), cx, cy);
+        ctx.textBaseline = "alphabetic";
+      }
     }
 
     ctx.restore();
@@ -570,9 +701,18 @@ function scheduleReconnect() {
   }, 2000);
 }
 
+// ---- Animation loop for effects ----
+var animFrameId = null;
+function animLoop() {
+  var hasAnim = state && state.effects && state.effects.some(function(e) { return e.animation; });
+  if (hasAnim) { render(); }
+  animFrameId = requestAnimationFrame(animLoop);
+}
+
 // ---- Init ----
 connectWS();
 loadMap();
+animLoop();
 
 </script>
 </body>
@@ -814,6 +954,7 @@ class PlayerViewServer:
             "map_width_px": img_w,
             "map_height_px": img_h,
             "creatures": [],
+            "effects": [],
             "combat_started": False,
             "round_number": 0,
             "active_creature_id": None,
@@ -849,6 +990,8 @@ class PlayerViewServer:
                     "size_category": creature.size_category,
                     "conditions": list(creature.conditions),
                     "token_url": f"/token/{creature.id}" if creature.token_path else "",
+                    "summoned_by": creature.summoned_by,
+                    "summon_color": creature.summon_color,
                 }
             else:
                 # Monsters/NPCs: hide combat stats entirely
@@ -861,9 +1004,25 @@ class PlayerViewServer:
                     "size_category": creature.size_category,
                     "conditions": list(creature.conditions),
                     "token_url": f"/token/{creature.id}" if creature.token_path else "",
+                    "summoned_by": creature.summoned_by,
+                    "summon_color": creature.summon_color,
                 }
 
             result["creatures"].append(c_data)
+
+        # Include visible effects
+        for effect in enc.effects:
+            if effect.visible:
+                result["effects"].append({
+                    "name": effect.name,
+                    "shape": effect.shape,
+                    "position": list(effect.position),
+                    "radius": effect.radius,
+                    "color": effect.color,
+                    "opacity": effect.opacity,
+                    "animation": effect.animation,
+                    "rotation": effect.rotation,
+                })
 
         return result
 
@@ -922,13 +1081,13 @@ class PlayerViewServer:
             logger.info("token_move: no encounter set")
             return
 
-        # Only allow moving player characters
+        # Allow moving player characters and their summons
         creature = enc.get_creature(creature_id)
         if not creature:
             logger.info("token_move: creature %s not found", creature_id)
             return
-        if not creature.is_player:
-            logger.info("token_move: creature %s is not a player", creature_id)
+        if not creature.is_player and not creature.summoned_by:
+            logger.info("token_move: creature %s is not movable by players", creature_id)
             return
 
         gx_int, gy_int = int(round(gx)), int(round(gy))

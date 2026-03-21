@@ -332,9 +332,10 @@ class LauncherWindow(QWidget):
         # 2. Clear Character List
         while self.token_layout.count():
             item = self.token_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().setParent(None)
-                item.widget().deleteLater()
+            w = item.widget() if item else None
+            if w:
+                w.setParent(None)
+                w.deleteLater()
         
         self.token_rows = {}
         
@@ -411,9 +412,10 @@ class LauncherWindow(QWidget):
         # Clear existing rows
         while self.player_layout.count():
             item = self.player_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().setParent(None)
-                item.widget().deleteLater()
+            w = item.widget() if item else None
+            if w:
+                w.setParent(None)
+                w.deleteLater()
         self.player_rows = {}
 
         # Load saved player config from current encounter folder

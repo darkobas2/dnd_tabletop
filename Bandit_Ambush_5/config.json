@@ -138,6 +138,7 @@
             "is_player": false
         }
     },
+    "player_sprites": {},
     "creatures": [
         {
             "id": "219789db-4d24-43e0-94fd-3df7bbd28d94",
@@ -160,6 +161,8 @@
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_humanbanditsniper1_2026-03-15T12_56_40.996Z.png",
             "token_scale": 1.29,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -180,12 +183,14 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                1,
-                0
+                0,
+                2
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_humanbanditsniper1_2026-03-15T12_56_40.996Z.png",
             "token_scale": 1.29,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -206,12 +211,14 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                2,
-                0
+                3,
+                5
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png",
             "token_scale": 1.53,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -233,11 +240,13 @@
             "size_category": "Medium",
             "position": [
                 3,
-                0
+                2
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png",
             "token_scale": 1.53,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -264,6 +273,8 @@
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
             "token_scale": 0.9,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -284,16 +295,106 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                5,
-                0
+                6,
+                3
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
             "token_scale": 0.9,
             "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
             }
+        },
+        {
+            "id": "11b2ad64-c1db-43e0-83ad-f928306bfffb",
+            "name": "Giant Eagle",
+            "hp": 26,
+            "hp_max": 26,
+            "hp_temp": 0,
+            "ac": 13,
+            "speed": 80,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Large",
+            "position": [
+                4,
+                4
+            ],
+            "token_path": "",
+            "token_scale": 1.4,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "#cd853f",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "b43bd157-52fd-4c2c-97f0-04af5ec74c28",
+            "name": "Shadow",
+            "hp": 16,
+            "hp_max": 16,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 40,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                6,
+                6
+            ],
+            "token_path": "",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "#1a1a2e",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        }
+    ],
+    "effects": [
+        {
+            "id": "9515cd87-4d46-4ee5-80ef-829f733c51e5",
+            "name": "Antimagic Field",
+            "shape": "circle",
+            "position": [
+                8,
+                5
+            ],
+            "radius": 2,
+            "color": "#808080",
+            "opacity": 0.3,
+            "animation": "pulse",
+            "rotation": 0.0,
+            "visible": true
+        },
+        {
+            "id": "17d2912e-a8fb-4f8c-a686-13ab52a20d0f",
+            "name": "Bonfire",
+            "shape": "circle",
+            "position": [
+                9,
+                3
+            ],
+            "radius": 2,
+            "color": "#ff6600",
+            "opacity": 0.4,
+            "animation": "flicker",
+            "rotation": 0.0,
+            "visible": true
         }
     ]
 }

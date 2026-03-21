@@ -154,13 +154,18 @@ class TokenItem(QGraphicsPixmapItem):
             sw = self.pixmap().width() * self.scale()
             sh = self.pixmap().height() * self.scale()
 
-            gx = (new_pos.x() // self.grid_size) * self.grid_size + self.grid_size / 2 - sw / 2
-            gy = (new_pos.y() // self.grid_size) * self.grid_size + self.grid_size / 2 - sh / 2
+            # Snap: find the grid cell the center of the token falls in
+            center_x = new_pos.x() + sw / 2
+            center_y = new_pos.y() + sh / 2
+            grid_col = int(center_x / self.grid_size) if center_x >= 0 else int(center_x / self.grid_size) - 1
+            grid_row = int(center_y / self.grid_size) if center_y >= 0 else int(center_y / self.grid_size) - 1
+
+            # Position so token is centered in the grid cell
+            gx = grid_col * self.grid_size + self.grid_size / 2 - sw / 2
+            gy = grid_row * self.grid_size + self.grid_size / 2 - sh / 2
 
             # Update creature position in grid coords
             if self.creature:
-                grid_col = int(new_pos.x() // self.grid_size)
-                grid_row = int(new_pos.y() // self.grid_size)
                 old_pos = self.creature.position
                 self.creature.position = (grid_col, grid_row)
                 if old_pos != (grid_col, grid_row):

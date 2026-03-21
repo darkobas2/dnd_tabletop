@@ -36,8 +36,13 @@ class DNDApp:
             try:
                 with open(config_path, 'r') as f:
                     cfg = json.load(f)
-                if "creatures" in cfg:
-                    return EncounterState.from_dict({"creatures": cfg["creatures"]})
+                if "creatures" in cfg or "effects" in cfg:
+                    load_data = {}
+                    if "creatures" in cfg:
+                        load_data["creatures"] = cfg["creatures"]
+                    if "effects" in cfg:
+                        load_data["effects"] = cfg["effects"]
+                    return EncounterState.from_dict(load_data)
             except Exception:
                 pass
         return EncounterState()

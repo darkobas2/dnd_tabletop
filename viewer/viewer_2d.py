@@ -5,11 +5,12 @@ import json
 
 from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QMainWindow,
                                 QDockWidget, QMenu, QInputDialog, QSplitter,
-                                QWidget, QVBoxLayout, QMenuBar)
-from PySide6.QtGui import QPixmap, QColor, QPen, QKeyEvent, QPainter, QAction
+                                QWidget, QVBoxLayout, QMenuBar, QLabel)
+from PySide6.QtGui import QPixmap, QColor, QPen, QBrush, QKeyEvent, QPainter, QAction
 from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 
 from viewer.token_item import TokenItem
+from viewer.effect_item import EffectItem, PlaceEffectDialog
 
 
 class MapViewer(QMainWindow):
@@ -30,6 +31,7 @@ class MapViewer(QMainWindow):
         self.dice_panel = None
         self.initiative_panel = None
         self.token_items = []
+        self.effect_items = []
         self._right_dock = None
         self._log_dock = None
         self._map_path = map_path
@@ -55,6 +57,9 @@ class MapViewer(QMainWindow):
 
         # Setup menu bar
         self._setup_menu()
+
+        # Load saved effects
+        self._load_saved_effects()
 
     def _setup_menu(self):
         """Create menu bar with View menu to restore panels."""
@@ -93,6 +98,14 @@ class MapViewer(QMainWindow):
         edit_all_action = QAction("Edit All Creatures...", self)
         edit_all_action.triggered.connect(self._edit_all_creatures)
         creatures_menu.addAction(edit_all_action)
+
+        # ---- Summons menu ----
+        summons_menu = menubar.addMenu("Summons")
+        self._build_summons_menu(summons_menu)
+
+        # ---- Effects menu ----
+        effects_menu = menubar.addMenu("Effects")
+        self._build_effects_menu(effects_menu)
 
         # ---- Network menu ----
         net_menu = menubar.addMenu("Network")
@@ -211,6 +224,222 @@ class MapViewer(QMainWindow):
                 dlg.exec()
         except Exception as e:
             print(f"QR error: {e}")
+
+    def _build_effects_menu(self, menu):
+        """Build the Effects menu with categorized spell/hazard effects."""
+        try:
+            from core.effects import get_effects_by_category, EFFECT_CATALOG
+
+            by_cat = get_effects_by_category()
+            for cat in sorted(by_cat.keys()):
+                sub = menu.addMenu(cat)
+                for name in by_cat[cat]:
+                    action = QAction(name, self)
+                    effect_data = EFFECT_CATALOG[name]
+                    action.triggered.connect(
+                        lambda checked, n=name, d=effect_data: self._place_effect_center(n, d)
+                    )
+                    sub.addAction(action)
+
+            menu.addSeparator()
+            clear_action = QAction("Clear All Effects", self)
+            clear_action.triggered.connect(self._clear_all_effects)
+            menu.addAction(clear_action)
+        except ImportError:
+            pass
+
+    def _place_effect_center(self, name, effect_data):
+        """Place an effect at the center of the current view (from menu bar)."""
+        center = self.view.mapToScene(self.view.viewport().rect().center())
+        gx = int(center.x() / self.view.grid_size)
+        gy = int(center.y() / self.view.grid_size)
+        self._add_effect_at(name, effect_data, gx, gy)
+
+    def _add_effect_at(self, name, effect_data, gx, gy):
+        """Show placement dialog, then create a MapEffect and add it to the scene."""
+        dialog = PlaceEffectDialog(name, effect_data, self)
+        if not dialog.exec():
+            return
+
+        from core.game_state import MapEffect
+        effect = MapEffect(
+            name=name,
+            shape=effect_data["shape"],
+            position=(gx, gy),
+            radius=dialog.get_radius(),
+            color=effect_data["color"],
+            opacity=effect_data["opacity"],
+            animation=effect_data.get("animation"),
+            rotation=float(dialog.get_rotation()),
+        )
+        if self.encounter:
+            self.encounter.add_effect(effect)
+
+        item = EffectItem(effect, self.view.grid_size, viewer=self)
+        self.view._scene.addItem(item)
+        self.effect_items.append(item)
+        self.schedule_save()
+
+        if self.combat_log:
+            self.combat_log.add_entry("effect", f"{name} ({effect.radius} sq) placed at ({gx}, {gy})")
+
+    def remove_effect(self, effect_item):
+        """Remove an effect from the map."""
+        effect_item.cleanup()
+        if effect_item in self.effect_items:
+            self.effect_items.remove(effect_item)
+        if effect_item.effect and self.encounter:
+            self.encounter.remove_effect(effect_item.effect.id)
+        self.view._scene.removeItem(effect_item)
+        self.schedule_save()
+
+    def _clear_all_effects(self):
+        """Remove all effects from the map."""
+        for item in list(self.effect_items):
+            self.remove_effect(item)
+
+    def _load_saved_effects(self):
+        """Restore effects from saved encounter state."""
+        if not self.encounter:
+            return
+        for effect in self.encounter.effects:
+            item = EffectItem(effect, self.view.grid_size, viewer=self)
+            self.view._scene.addItem(item)
+            self.effect_items.append(item)
+
+    # -- Summons -----------------------------------------------------------
+
+    def _build_summons_menu(self, menu):
+        """Build the Summons menu with categorized summonables."""
+        try:
+            from core.summons import get_summons_by_category, SUMMON_CATALOG
+
+            by_cat = get_summons_by_category()
+            for cat in sorted(by_cat.keys()):
+                sub = menu.addMenu(cat)
+                for name in by_cat[cat]:
+                    action = QAction(name, self)
+                    sdata = SUMMON_CATALOG[name]
+                    action.triggered.connect(
+                        lambda checked, n=name, d=sdata: self._place_summon_center(n, d)
+                    )
+                    sub.addAction(action)
+        except ImportError:
+            pass
+
+    def _place_summon_center(self, name, sdata):
+        """Place a summon at the center of the current view (from menu bar)."""
+        center = self.view.mapToScene(self.view.viewport().rect().center())
+        gx = int(center.x() / self.view.grid_size)
+        gy = int(center.y() / self.view.grid_size)
+        self._add_summon_at(name, sdata, gx, gy)
+
+    def _add_summon_at(self, name, sdata, gx, gy):
+        """Show dialog, then create a summoned creature and add it to the map."""
+        from PySide6.QtWidgets import (QDialog, QFormLayout, QSpinBox,
+                                        QComboBox, QPushButton, QHBoxLayout)
+        from core.summons import SIZE_SCALES
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Summon: {name}")
+        dlg.setMinimumWidth(320)
+        form = QFormLayout(dlg)
+
+        form.addRow("Creature:", QLabel(f"<b>{name}</b>"))
+
+        hp_spin = QSpinBox()
+        hp_spin.setRange(1, 9999)
+        hp_spin.setValue(sdata["hp"])
+        form.addRow("HP:", hp_spin)
+
+        ac_spin = QSpinBox()
+        ac_spin.setRange(0, 30)
+        ac_spin.setValue(sdata["ac"])
+        form.addRow("AC:", ac_spin)
+
+        # Summoner picker — list of player characters
+        summoner_combo = QComboBox()
+        summoner_combo.addItem("(No owner)", "")
+        if self.encounter:
+            for c in self.encounter.creatures:
+                if c.is_player:
+                    summoner_combo.addItem(c.name, c.id)
+        form.addRow("Summoner:", summoner_combo)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        ok_btn = QPushButton("Summon")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(dlg.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        form.addRow(btn_row)
+
+        if not dlg.exec():
+            return
+
+        from core.game_state import CreatureState
+
+        summoner_id = summoner_combo.currentData() or ""
+        # Determine glow color from summoner or summon data
+        summon_color = sdata.get("color", "#ffd700")
+
+        size = sdata.get("size", "Medium")
+        scale = SIZE_SCALES.get(size, 1.0)
+
+        creature = CreatureState(
+            name=name,
+            hp=hp_spin.value(),
+            hp_max=hp_spin.value(),
+            ac=ac_spin.value(),
+            speed=sdata.get("speed", 30),
+            size_category=size,
+            position=(gx, gy),
+            token_scale=scale,
+            summoned_by=summoner_id,
+            summon_color=summon_color,
+            notes=sdata.get("notes", ""),
+        )
+        self.encounter.add_creature(creature)
+
+        # Create token — colored circle since we have no sprite
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.transparent)
+        from PySide6.QtGui import QPainter as _P
+        p = _P(pixmap)
+        p.setRenderHint(_P.Antialiasing)
+        color = QColor(summon_color)
+        color.setAlpha(200)
+        p.setBrush(QBrush(color))
+        p.setPen(QPen(QColor(255, 255, 255, 180), 2))
+        p.drawEllipse(4, 4, 56, 56)
+        # Draw first letter
+        font = p.font()
+        font.setPointSize(24)
+        font.setBold(True)
+        p.setFont(font)
+        p.setPen(QColor(255, 255, 255))
+        p.drawText(QRectF(0, 0, 64, 64), Qt.AlignCenter, name[0].upper())
+        p.end()
+
+        token = TokenItem(pixmap, name, self.view.grid_size, scale,
+                          creature=creature, viewer=self)
+        self.view._scene.addItem(token)
+        token.setPos(gx * self.view.grid_size, gy * self.view.grid_size)
+        self.view.token_items.append(token)
+
+        if self.initiative_panel:
+            self.initiative_panel.refresh()
+        self.schedule_save()
+
+        if self.combat_log:
+            summoner_name = summoner_combo.currentText()
+            if summoner_id:
+                self.combat_log.add_entry("summon", f"{summoner_name} summoned {name}")
+            else:
+                self.combat_log.add_entry("summon", f"{name} summoned")
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
@@ -398,19 +627,23 @@ class MapViewer(QMainWindow):
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     cfg = json.load(f)
-            # Save creature list
+            # Save creature list and effects
             cfg["creatures"] = [c.to_dict() for c in self.encounter.creatures]
+            cfg["effects"] = [e.to_dict() for e in self.encounter.effects]
             with open(config_path, 'w') as f:
                 json.dump(cfg, f, indent=4)
         except Exception as e:
             print(f"Warning: Could not save creatures: {e}")
 
     def closeEvent(self, event):
-        """Clean up server on close."""
+        """Clean up server and effects on close."""
         if hasattr(self, '_server') and self._server:
             self._server.stop()
         if hasattr(self, '_broadcast_timer') and self._broadcast_timer:
             self._broadcast_timer.stop()
+        # Stop effect animations
+        for item in self.effect_items:
+            item.cleanup()
         # Final save
         self._save_creatures()
         super().closeEvent(event)
@@ -591,12 +824,25 @@ class _MapGraphicsView(QGraphicsView):
     def contextMenuEvent(self, event):
         """Right-click on empty map space."""
         item = self.itemAt(event.pos())
+        # Let TokenItem and EffectItem handle their own context menus
         if isinstance(item, TokenItem) or (item and item.parentItem() and isinstance(item.parentItem(), TokenItem)):
+            super().contextMenuEvent(event)
+            return
+        if isinstance(item, EffectItem):
             super().contextMenuEvent(event)
             return
 
         menu = QMenu(self)
         add_creature_action = menu.addAction("Add Creature Here...")
+
+        # Effects submenu in context menu
+        effects_sub = menu.addMenu("Place Effect Here...")
+        self._build_context_effects_menu(effects_sub, event.pos())
+
+        # Summons submenu in context menu
+        summons_sub = menu.addMenu("Summon Here...")
+        self._build_context_summons_menu(summons_sub, event.pos())
+
         menu.addSeparator()
         grid_action = menu.addAction("Toggle Grid (G)")
         fullscreen_action = menu.addAction("Toggle Fullscreen (F)")
@@ -644,5 +890,51 @@ class _MapGraphicsView(QGraphicsView):
 
                 if self.parent_viewer and self.parent_viewer.initiative_panel:
                     self.parent_viewer.initiative_panel.refresh()
+        except ImportError:
+            pass
+
+    def _build_context_effects_menu(self, menu, view_pos):
+        """Build categorized effects submenu for right-click placement."""
+        try:
+            from core.effects import get_effects_by_category, EFFECT_CATALOG
+
+            scene_pos = self.mapToScene(view_pos)
+            gx = int(scene_pos.x() / self.grid_size)
+            gy = int(scene_pos.y() / self.grid_size)
+
+            by_cat = get_effects_by_category()
+            for cat in sorted(by_cat.keys()):
+                sub = menu.addMenu(cat)
+                for name in by_cat[cat]:
+                    action = sub.addAction(name)
+                    effect_data = EFFECT_CATALOG[name]
+                    action.triggered.connect(
+                        lambda checked, n=name, d=effect_data, x=gx, y=gy:
+                            self.parent_viewer._add_effect_at(n, d, x, y)
+                            if self.parent_viewer else None
+                    )
+        except ImportError:
+            pass
+
+    def _build_context_summons_menu(self, menu, view_pos):
+        """Build categorized summons submenu for right-click placement."""
+        try:
+            from core.summons import get_summons_by_category, SUMMON_CATALOG
+
+            scene_pos = self.mapToScene(view_pos)
+            gx = int(scene_pos.x() / self.grid_size)
+            gy = int(scene_pos.y() / self.grid_size)
+
+            by_cat = get_summons_by_category()
+            for cat in sorted(by_cat.keys()):
+                sub = menu.addMenu(cat)
+                for name in by_cat[cat]:
+                    action = sub.addAction(name)
+                    sdata = SUMMON_CATALOG[name]
+                    action.triggered.connect(
+                        lambda checked, n=name, d=sdata, x=gx, y=gy:
+                            self.parent_viewer._add_summon_at(n, d, x, y)
+                            if self.parent_viewer else None
+                    )
         except ImportError:
             pass

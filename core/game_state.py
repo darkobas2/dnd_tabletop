@@ -40,6 +40,8 @@ class CreatureState:
     token_path: str = ""
     token_scale: float = 1.0
     notes: str = ""
+    summoned_by: str = ""  # creature id of summoner, empty = not a summon
+    summon_color: str = ""  # glow color for summoned creatures
     death_saves: Dict[str, int] = field(
         default_factory=lambda: {"successes": 0, "failures": 0}
     )
@@ -141,6 +143,8 @@ class CreatureState:
             "token_path": self.token_path,
             "token_scale": self.token_scale,
             "notes": self.notes,
+            "summoned_by": self.summoned_by,
+            "summon_color": self.summon_color,
             "death_saves": dict(self.death_saves),
         }
 
@@ -164,9 +168,60 @@ class CreatureState:
             token_path=d.get("token_path", ""),
             token_scale=d.get("token_scale", 1.0),
             notes=d.get("notes", ""),
+            summoned_by=d.get("summoned_by", ""),
+            summon_color=d.get("summon_color", ""),
             death_saves=d.get(
                 "death_saves", {"successes": 0, "failures": 0}
             ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# MapEffect
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MapEffect:
+    """A visual area effect placed on the map (spell, hazard, etc.)."""
+
+    name: str
+    shape: str  # "circle", "cone", "line", "cube"
+    position: Tuple[float, float] = (0.0, 0.0)  # grid coords (center)
+    radius: int = 4  # size in grid squares
+    color: str = "#ff4500"
+    opacity: float = 0.35
+    animation: Optional[str] = None  # None, "pulse", "flicker", "swirl"
+    rotation: float = 0.0  # degrees, for cone/line direction
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    visible: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "shape": self.shape,
+            "position": list(self.position),
+            "radius": self.radius,
+            "color": self.color,
+            "opacity": self.opacity,
+            "animation": self.animation,
+            "rotation": self.rotation,
+            "visible": self.visible,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> MapEffect:
+        return cls(
+            id=d.get("id", str(uuid.uuid4())),
+            name=d.get("name", "Effect"),
+            shape=d.get("shape", "circle"),
+            position=tuple(d.get("position", [0.0, 0.0])),
+            radius=d.get("radius", 4),
+            color=d.get("color", "#ff4500"),
+            opacity=d.get("opacity", 0.35),
+            animation=d.get("animation"),
+            rotation=d.get("rotation", 0.0),
+            visible=d.get("visible", True),
         )
 
 
@@ -217,6 +272,7 @@ class EncounterState:
     """Full state of a single encounter / combat session."""
 
     creatures: List[CreatureState] = field(default_factory=list)
+    effects: List[MapEffect] = field(default_factory=list)
     round_number: int = 0
     active_creature_index: int = -1
     combat_started: bool = False
@@ -256,6 +312,20 @@ class EncounterState:
         for c in self.creatures:
             if c.id == creature_id:
                 return c
+        return None
+
+    # -- Effect management -------------------------------------------------
+
+    def add_effect(self, effect: MapEffect) -> None:
+        self.effects.append(effect)
+
+    def remove_effect(self, effect_id: str) -> None:
+        self.effects = [e for e in self.effects if e.id != effect_id]
+
+    def get_effect(self, effect_id: str) -> Optional[MapEffect]:
+        for e in self.effects:
+            if e.id == effect_id:
+                return e
         return None
 
     # -- Initiative / combat flow ------------------------------------------
@@ -368,6 +438,7 @@ class EncounterState:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "creatures": [c.to_dict() for c in self.creatures],
+            "effects": [e.to_dict() for e in self.effects],
             "round_number": self.round_number,
             "active_creature_index": self.active_creature_index,
             "combat_started": self.combat_started,
@@ -387,6 +458,9 @@ class EncounterState:
         return cls(
             creatures=[
                 CreatureState.from_dict(c) for c in d.get("creatures", [])
+            ],
+            effects=[
+                MapEffect.from_dict(e) for e in d.get("effects", [])
             ],
             round_number=d.get("round_number", 0),
             active_creature_index=d.get("active_creature_index", -1),
