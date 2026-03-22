@@ -43,27 +43,31 @@
         "Barbarian.png": {
             "enabled": false,
             "name": "Barbarian",
+            "level": 1,
             "hp": 23,
-            "ac": 12,
-            "size": 100
+            "ac": 7,
+            "size": 97
         },
         "Bard.png": {
-            "enabled": false,
+            "enabled": true,
             "name": "Bard",
-            "hp": 20,
+            "level": 1,
+            "hp": 30,
             "ac": 12,
             "size": 100
         },
         "Cleric.png": {
-            "enabled": false,
+            "enabled": true,
             "name": "Cleric",
+            "level": 3,
             "hp": 20,
-            "ac": 12,
+            "ac": 9,
             "size": 100
         },
         "Druid.png": {
             "enabled": true,
             "name": "Druid",
+            "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 97
@@ -71,6 +75,7 @@
         "Fighter.png": {
             "enabled": true,
             "name": "Fighter",
+            "level": 1,
             "hp": 24,
             "ac": 12,
             "size": 97
@@ -78,6 +83,7 @@
         "Monk.png": {
             "enabled": true,
             "name": "Monk",
+            "level": 1,
             "hp": 32,
             "ac": 12,
             "size": 100
@@ -85,6 +91,7 @@
         "Paladin.png": {
             "enabled": false,
             "name": "Paladin",
+            "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 100
@@ -92,6 +99,7 @@
         "Ranger.png": {
             "enabled": false,
             "name": "Ranger",
+            "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 130
@@ -99,6 +107,7 @@
         "Rogue.png": {
             "enabled": false,
             "name": "Rogue",
+            "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 103
@@ -106,6 +115,7 @@
         "Sorcerer.png": {
             "enabled": false,
             "name": "Sorcerer",
+            "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 97
@@ -113,6 +123,7 @@
         "Warlock.png": {
             "enabled": false,
             "name": "Warlock",
+            "level": 1,
             "hp": 19,
             "ac": 5,
             "size": 100
@@ -120,6 +131,7 @@
         "Wizard.png": {
             "enabled": false,
             "name": "Wizard",
+            "level": 1,
             "hp": 19,
             "ac": 12,
             "size": 88

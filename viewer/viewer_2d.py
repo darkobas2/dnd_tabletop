@@ -61,6 +61,21 @@ class MapViewer(QMainWindow):
         # Load saved effects
         self._load_saved_effects()
 
+        # Floating exit button (visible in fullscreen)
+        from PySide6.QtWidgets import QPushButton
+        self._exit_btn = QPushButton("Exit", self)
+        self._exit_btn.setFixedSize(70, 30)
+        self._exit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(180, 40, 40, 180);
+                color: white; font-weight: bold; font-size: 12px;
+                border: 1px solid #888; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: rgba(220, 50, 50, 220); }
+        """)
+        self._exit_btn.clicked.connect(self.close)
+        self._exit_btn.raise_()
+
     def _setup_menu(self):
         """Create menu bar with View menu to restore panels."""
         menubar = self.menuBar()
@@ -87,6 +102,11 @@ class MapViewer(QMainWindow):
         fullscreen_action = QAction("Toggle Fullscreen (F)", self)
         fullscreen_action.triggered.connect(self._toggle_fullscreen)
         view_menu.addAction(fullscreen_action)
+
+        view_menu.addSeparator()
+        exit_action = QAction("Exit to Launcher (Esc)", self)
+        exit_action.triggered.connect(self.close)
+        view_menu.addAction(exit_action)
 
         # ---- Creatures menu ----
         creatures_menu = menubar.addMenu("Creatures")
@@ -643,6 +663,12 @@ class MapViewer(QMainWindow):
                 json.dump(cfg, f, indent=4)
         except Exception as e:
             print(f"Warning: Could not save creatures: {e}")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_exit_btn'):
+            self._exit_btn.move(self.width() - self._exit_btn.width() - 10, 8)
+            self._exit_btn.raise_()
 
     def closeEvent(self, event):
         """Clean up server and effects on close."""

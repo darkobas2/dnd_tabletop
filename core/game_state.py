@@ -42,6 +42,7 @@ class CreatureState:
     notes: str = ""
     summoned_by: str = ""  # creature id of summoner, empty = not a summon
     summon_color: str = ""  # glow color for summoned creatures
+    character_sheet: Optional[Dict[str, Any]] = None  # full 5e sheet (players only)
     death_saves: Dict[str, int] = field(
         default_factory=lambda: {"successes": 0, "failures": 0}
     )
@@ -145,6 +146,7 @@ class CreatureState:
             "notes": self.notes,
             "summoned_by": self.summoned_by,
             "summon_color": self.summon_color,
+            "character_sheet": self.character_sheet,
             "death_saves": dict(self.death_saves),
         }
 
@@ -170,6 +172,7 @@ class CreatureState:
             notes=d.get("notes", ""),
             summoned_by=d.get("summoned_by", ""),
             summon_color=d.get("summon_color", ""),
+            character_sheet=d.get("character_sheet"),
             death_saves=d.get(
                 "death_saves", {"successes": 0, "failures": 0}
             ),

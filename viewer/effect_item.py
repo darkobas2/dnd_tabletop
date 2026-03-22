@@ -121,8 +121,12 @@ class EffectItem(QGraphicsItem):
 
     def boundingRect(self):
         r = self._shape_rect()
-        margin = 20
-        return r.adjusted(-4, -margin - 4, 4, 4)
+        label_margin = 30  # space for label above
+        # Extra margin for swirl rotation
+        if self.effect.animation == "swirl":
+            ext = max(r.width(), r.height()) / 2 + 10
+            return QRectF(-ext, -ext - label_margin, ext * 2, ext * 2 + label_margin)
+        return r.adjusted(-4, -label_margin - 4, 4, 4)
 
     def shape(self):
         """Return precise shape for mouse hit-testing (not the full bounding rect)."""
@@ -140,10 +144,12 @@ class EffectItem(QGraphicsItem):
             self.setOpacity(factor)
         elif self.effect.animation == "flicker":
             import random
-            factor = 0.7 + 0.3 * random.random()
+            factor = 0.65 + 0.35 * random.random()
             self.setOpacity(factor)
         elif self.effect.animation == "swirl":
+            self.prepareGeometryChange()
             self.setRotation(self._anim_phase * 5 % 360)
+            self.update()
 
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)
@@ -210,15 +216,32 @@ class EffectItem(QGraphicsItem):
             sr = self._shape_rect()
             painter.drawRect(sr)
 
-        # Name label above
+        # Name label above — always upright even when item rotates
+        painter.save()
+        painter.resetTransform()  # undo any swirl rotation for text
+        # Map item origin to scene, then to painter coords
+        scene_pos = self.scenePos()
         sr = self._shape_rect()
         font = painter.font()
-        font.setPointSize(max(8, int(gs * 0.2)))
+        font_size = max(9, int(gs * 0.22))
+        font.setPointSize(font_size)
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QColor(255, 255, 255, 220))
-        label_rect = QRectF(sr.left(), sr.top() - 18, sr.width(), 16)
-        painter.drawText(label_rect, Qt.AlignCenter, self.effect.name)
+        fm = painter.fontMetrics()
+        text = self.effect.name
+        tw = fm.horizontalAdvance(text) + 12
+        th = fm.height() + 4
+        tx = scene_pos.x() - tw / 2
+        ext = max(abs(sr.top()), abs(sr.bottom()), abs(sr.left()), abs(sr.right()))
+        ty = scene_pos.y() - ext - th - 4
+        # Dark background pill
+        painter.setBrush(QBrush(QColor(0, 0, 0, 160)))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(QRectF(tx, ty, tw, th), 4, 4)
+        # Text
+        painter.setPen(QColor(255, 255, 255, 230))
+        painter.drawText(QRectF(tx, ty, tw, th), Qt.AlignCenter, text)
+        painter.restore()
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange and self.scene():

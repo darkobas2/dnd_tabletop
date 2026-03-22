@@ -228,6 +228,11 @@ class TokenItem(QGraphicsPixmapItem):
 
         # Edit
         edit_action = menu.addAction("Edit Creature...")
+
+        # Character sheet (optional, for player characters)
+        sheet_action = None
+        if self.creature.is_player:
+            sheet_action = menu.addAction("Character Sheet...")
         menu.addSeparator()
 
         # Remove
@@ -272,6 +277,19 @@ class TokenItem(QGraphicsPixmapItem):
         elif action == edit_action:
             if self.viewer:
                 self.viewer.edit_creature(self.creature)
+
+        elif sheet_action and action == sheet_action:
+            try:
+                from ui.widgets.character_sheet import CharacterSheetDialog
+                dlg = CharacterSheetDialog(self.creature, None)
+                if dlg.exec():
+                    dlg.get_updated_creature()
+                    self.update_visuals()
+                    self._trigger_save()
+                    if self.viewer and hasattr(self.viewer, 'initiative_panel') and self.viewer.initiative_panel:
+                        self.viewer.initiative_panel.refresh()
+            except Exception as e:
+                print(f"Character sheet error: {e}")
 
         elif action == remove_action:
             if self.viewer:

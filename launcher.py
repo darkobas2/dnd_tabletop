@@ -3,7 +3,7 @@ import json
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
                              QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
-                             QLineEdit)
+                             QLineEdit, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QPixmap
 from scanner import DNDScanner, TokenData
@@ -93,9 +93,9 @@ class TokenConfigRow(QFrame):
         }
 
 class PlayerSpriteRow(QFrame):
-    """Widget for a player character sprite — checkbox, preview, name, HP, AC, size."""
+    """Widget for a player character sprite — checkbox, preview, name, level, HP, AC, size."""
     def __init__(self, token_data: TokenData, initial_enabled=False,
-                 initial_name="", initial_hp=20, initial_ac=12, initial_size=100):
+                 initial_name="", initial_level=1, initial_hp=20, initial_ac=12, initial_size=100):
         super().__init__()
         self.token_data = token_data
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
@@ -132,6 +132,13 @@ class PlayerSpriteRow(QFrame):
         self.name_edit.setText(initial_name if initial_name else short_name)
         self.name_edit.setPlaceholderText("Character name")
         row1.addWidget(self.name_edit, 2)
+
+        row1.addWidget(QLabel("Lvl:"))
+        self.level_spin = QSpinBox()
+        self.level_spin.setRange(1, 20)
+        self.level_spin.setValue(initial_level)
+        self.level_spin.setFixedWidth(50)
+        row1.addWidget(self.level_spin)
         fields.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -168,6 +175,7 @@ class PlayerSpriteRow(QFrame):
         return {
             "enabled": self.enabled_check.isChecked(),
             "name": self.name_edit.text(),
+            "level": self.level_spin.value(),
             "hp": self.hp_spin.value(),
             "ac": self.ac_spin.value(),
             "size": self.size_slider.value(),
@@ -182,7 +190,7 @@ class LauncherWindow(QWidget):
         self.scanner = scanner
         self.on_launch = on_launch
         self.setWindowTitle("D&D Map Interactive Launcher")
-        self.resize(900, 900)
+        self.showMaximized()
         
         self._updating = False
         self.token_rows = {} # TokenData -> TokenConfigRow
@@ -246,9 +254,32 @@ class LauncherWindow(QWidget):
         self.token_scroll.setWidget(self.token_container)
         main_layout.addWidget(self.token_scroll)
 
-        # 4. Player Characters (from player_sprites/ folder)
+        # 4. Player Characters — Team system
         main_layout.addWidget(QLabel("<h3>4. Player Characters</h3>"))
-        sprites_hint = QLabel("<small>Place player sprite PNGs in the <b>player_sprites/</b> folder</small>")
+
+        # Team picker row
+        team_row = QHBoxLayout()
+        team_row.addWidget(QLabel("Team:"))
+        self.team_combo = QComboBox()
+        self.team_combo.setMinimumWidth(150)
+        self.team_combo.currentIndexChanged.connect(self._on_team_selected)
+        team_row.addWidget(self.team_combo, 1)
+
+        self.save_team_btn = QPushButton("Save Team")
+        self.save_team_btn.setStyleSheet("font-weight: bold;")
+        self.save_team_btn.clicked.connect(self._save_team)
+        team_row.addWidget(self.save_team_btn)
+
+        self.save_as_team_btn = QPushButton("Save As...")
+        self.save_as_team_btn.clicked.connect(self._save_team_as)
+        team_row.addWidget(self.save_as_team_btn)
+
+        self.delete_team_btn = QPushButton("Delete")
+        self.delete_team_btn.clicked.connect(self._delete_team)
+        team_row.addWidget(self.delete_team_btn)
+        main_layout.addLayout(team_row)
+
+        sprites_hint = QLabel("<small>Sprites from <b>player_sprites/</b> — check to include, configure stats, then Save Team</small>")
         sprites_hint.setStyleSheet("color: #888;")
         main_layout.addWidget(sprites_hint)
 
@@ -309,6 +340,7 @@ class LauncherWindow(QWidget):
         
         self._updating = False
         self._rebuild_player_sprites()
+        self._refresh_team_combo()
         # Use QTimer to ensure the combo box index change signals have fired
         QTimer.singleShot(0, lambda: self.update_folder_selection(self.folder_combo.currentIndex()))
 
@@ -443,17 +475,126 @@ class LauncherWindow(QWidget):
                 sprite,
                 initial_enabled=cfg.get("enabled", False),
                 initial_name=cfg.get("name", ""),
+                initial_level=cfg.get("level", 1),
                 initial_hp=cfg.get("hp", 20),
                 initial_ac=cfg.get("ac", 12),
                 initial_size=cfg.get("size", 100),
             )
             row.enabled_check.toggled.connect(self._auto_save_config)
             row.name_edit.textChanged.connect(self._auto_save_config)
+            row.level_spin.valueChanged.connect(self._auto_save_config)
             row.hp_spin.valueChanged.connect(self._auto_save_config)
             row.ac_spin.valueChanged.connect(self._auto_save_config)
             row.size_slider.valueChanged.connect(self._auto_save_config)
             self.player_layout.addWidget(row)
             self.player_rows[sprite] = row
+
+    # -- Team management ---------------------------------------------------
+
+    def _teams_path(self):
+        cfg_dir = os.path.join(self.scanner.base_path, "_config")
+        os.makedirs(cfg_dir, exist_ok=True)
+        return os.path.join(cfg_dir, "teams.json")
+
+    def _load_teams(self):
+        """Load all saved teams from teams.json."""
+        path = self._teams_path()
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        return {}
+
+    def _save_teams(self, teams):
+        with open(self._teams_path(), 'w') as f:
+            json.dump(teams, f, indent=4)
+
+    def _refresh_team_combo(self):
+        """Rebuild team combo from saved teams."""
+        self.team_combo.blockSignals(True)
+        current = self.team_combo.currentText()
+        self.team_combo.clear()
+        self.team_combo.addItem("(No team)")
+        teams = self._load_teams()
+        for name in sorted(teams.keys()):
+            self.team_combo.addItem(name)
+        if current and self.team_combo.findText(current) >= 0:
+            self.team_combo.setCurrentText(current)
+        self.team_combo.blockSignals(False)
+
+    def _on_team_selected(self, index):
+        """Load a team's config into the player sprite rows."""
+        if self._updating:
+            return
+        team_name = self.team_combo.currentText()
+        if team_name == "(No team)" or not team_name:
+            return
+        teams = self._load_teams()
+        team = teams.get(team_name, {})
+        if not team:
+            return
+        # Apply team config to player sprite rows
+        self._updating = True
+        for sprite, row in self.player_rows.items():
+            cfg = team.get(sprite.name, {})
+            row.enabled_check.setChecked(cfg.get("enabled", False))
+            if cfg.get("name"):
+                row.name_edit.setText(cfg["name"])
+            row.hp_spin.setValue(cfg.get("hp", 20))
+            row.ac_spin.setValue(cfg.get("ac", 12))
+            row.size_slider.setValue(cfg.get("size", 100))
+        self._updating = False
+        self._auto_save_config()
+
+    def _get_current_team_config(self):
+        """Get current player sprite config as a team dict."""
+        team = {}
+        for sprite, row in self.player_rows.items():
+            cfg = row.get_config()
+            team[sprite.name] = cfg
+        return team
+
+    def _save_team(self):
+        """Save current config to the currently selected team."""
+        team_name = self.team_combo.currentText()
+        if team_name == "(No team)" or not team_name:
+            self._save_team_as()
+            return
+        teams = self._load_teams()
+        teams[team_name] = self._get_current_team_config()
+        self._save_teams(teams)
+        QMessageBox.information(self, "Team Saved", f"Team '{team_name}' saved.")
+
+    def _save_team_as(self):
+        """Save current config as a new named team."""
+        name, ok = QInputDialog.getText(self, "Save Team As", "Team name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        teams = self._load_teams()
+        teams[name] = self._get_current_team_config()
+        self._save_teams(teams)
+        self._refresh_team_combo()
+        self.team_combo.setCurrentText(name)
+        QMessageBox.information(self, "Team Saved", f"Team '{name}' saved.")
+
+    def _delete_team(self):
+        """Delete the currently selected team."""
+        team_name = self.team_combo.currentText()
+        if team_name == "(No team)" or not team_name:
+            return
+        reply = QMessageBox.question(
+            self, "Delete Team",
+            f"Delete team '{team_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            teams = self._load_teams()
+            teams.pop(team_name, None)
+            self._save_teams(teams)
+            self._refresh_team_combo()
 
     def _auto_save_config(self):
         if self._updating: return
