@@ -3,84 +3,96 @@ import json
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
                              QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
-                             QLineEdit, QInputDialog, QMessageBox)
+                             QLineEdit, QInputDialog, QMessageBox, QTabWidget)
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
+from glob import glob as globfiles
 from PySide6.QtGui import QPixmap
 from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
 
 class TokenConfigRow(QFrame):
-    """Widget for a single token type — count, size, name, HP, AC."""
+    """Widget for a single token type — preview, count, size, name, HP, AC."""
     def __init__(self, token_data: TokenData, initial_count=0, initial_size=100,
                  initial_name="", initial_hp=10, initial_ac=10, initial_is_player=False):
         super().__init__()
         self.token_data = token_data
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
 
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(5, 5, 5, 5)
-        outer.setSpacing(3)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(6)
 
-        # Row 1: File name + Qty + Size
+        # Token preview
+        preview = QLabel()
+        pix = QPixmap(token_data.path)
+        if not pix.isNull():
+            preview.setPixmap(pix.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            preview.setText("?")
+        preview.setFixedSize(42, 42)
+        preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        preview.setToolTip(token_data.name)
+        outer.addWidget(preview)
+
+        # Fields column
+        fields = QVBoxLayout()
+        fields.setSpacing(2)
+
+        # Row 1: Name + Qty + Size
         row1 = QHBoxLayout()
         row1.setSpacing(4)
         short_name = extract_creature_name(token_data.name)
-        file_label = QLabel(f"<small>{short_name}</small>")
-        file_label.setMinimumWidth(100)
-        file_label.setToolTip(token_data.name)
-        row1.addWidget(file_label, 2)
+
+        row1.addWidget(QLabel("Name:"))
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Creature name")
+        default_name = initial_name if initial_name else short_name
+        self.name_edit.setText(default_name)
+        row1.addWidget(self.name_edit, 2)
 
         row1.addWidget(QLabel("Qty:"))
         self.count_spin = QSpinBox()
         self.count_spin.setRange(0, 50)
         self.count_spin.setValue(initial_count)
-        self.count_spin.setFixedWidth(55)
+        self.count_spin.setFixedWidth(50)
         row1.addWidget(self.count_spin)
+        fields.addLayout(row1)
 
-        row1.addWidget(QLabel("Size:"))
-        self.size_slider = QSlider(Qt.Horizontal)
-        self.size_slider.setRange(20, 400)
-        self.size_slider.setValue(initial_size)
-        self.size_slider.setMinimumWidth(60)
-        row1.addWidget(self.size_slider, 1)
-        self.size_value_label = QLabel(f"{initial_size}%")
-        self.size_value_label.setFixedWidth(35)
-        self.size_slider.valueChanged.connect(lambda v: self.size_value_label.setText(f"{v}%"))
-        row1.addWidget(self.size_value_label)
-        outer.addLayout(row1)
-
-        # Row 2: Name, HP, AC, Player checkbox
+        # Row 2: HP, AC, Size, PC
         row2 = QHBoxLayout()
         row2.setSpacing(4)
-
-        row2.addWidget(QLabel("Name:"))
-        self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("Creature name")
-        default_name = initial_name if initial_name else short_name
-        self.name_edit.setText(default_name)
-        self.name_edit.setMinimumWidth(80)
-        row2.addWidget(self.name_edit, 2)
 
         row2.addWidget(QLabel("HP:"))
         self.hp_spin = QSpinBox()
         self.hp_spin.setRange(1, 9999)
         self.hp_spin.setValue(initial_hp)
-        self.hp_spin.setFixedWidth(60)
+        self.hp_spin.setFixedWidth(55)
         row2.addWidget(self.hp_spin)
 
         row2.addWidget(QLabel("AC:"))
         self.ac_spin = QSpinBox()
         self.ac_spin.setRange(0, 30)
         self.ac_spin.setValue(initial_ac)
-        self.ac_spin.setFixedWidth(60)
+        self.ac_spin.setFixedWidth(45)
         row2.addWidget(self.ac_spin)
+
+        row2.addWidget(QLabel("Size:"))
+        self.size_slider = QSlider(Qt.Horizontal)
+        self.size_slider.setRange(20, 400)
+        self.size_slider.setValue(initial_size)
+        row2.addWidget(self.size_slider, 1)
+        self.size_value_label = QLabel(f"{initial_size}%")
+        self.size_value_label.setFixedWidth(32)
+        self.size_slider.valueChanged.connect(lambda v: self.size_value_label.setText(f"{v}%"))
+        row2.addWidget(self.size_value_label)
 
         self.player_check = QCheckBox("PC")
         self.player_check.setChecked(initial_is_player)
         self.player_check.setToolTip("Player Character")
         row2.addWidget(self.player_check)
+        fields.addLayout(row2)
 
-        outer.addLayout(row2)
+        outer.addLayout(fields, 1)
 
     def get_config(self):
         return {
@@ -93,12 +105,13 @@ class TokenConfigRow(QFrame):
         }
 
 class PlayerSpriteRow(QFrame):
-    """Widget for a player character sprite — checkbox, preview, name, level, HP, AC, size, familiar."""
+    """Widget for an active party member — preview, name, level, HP, AC, size, familiar, remove."""
 
     # Class-level list of available familiars (populated once by launcher)
     FAMILIAR_CHOICES = []
+    removed = Signal()  # emitted when Remove is clicked
 
-    def __init__(self, token_data: TokenData, initial_enabled=False,
+    def __init__(self, token_data: TokenData,
                  initial_name="", initial_level=1, initial_hp=20, initial_ac=12,
                  initial_size=100, initial_familiar=""):
         super().__init__()
@@ -106,24 +119,20 @@ class PlayerSpriteRow(QFrame):
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
 
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(5, 5, 5, 5)
+        outer.setContentsMargins(4, 4, 4, 4)
         outer.setSpacing(6)
 
-        # Checkbox to include this player
-        self.enabled_check = QCheckBox()
-        self.enabled_check.setChecked(initial_enabled)
-        outer.addWidget(self.enabled_check)
-
         # Sprite preview thumbnail
-        preview = QLabel()
+        self.preview_label = QLabel()
         pix = QPixmap(token_data.path)
         if not pix.isNull():
-            preview.setPixmap(pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.preview_label.setPixmap(pix.scaled(44, 44, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
-            preview.setText("?")
-        preview.setFixedSize(50, 50)
-        preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
-        outer.addWidget(preview)
+            self.preview_label.setText("?")
+        self.preview_label.setFixedSize(46, 46)
+        self.preview_label.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        self.preview_label.setToolTip(token_data.name)
+        outer.addWidget(self.preview_label)
 
         # Fields column
         fields = QVBoxLayout()
@@ -144,6 +153,13 @@ class PlayerSpriteRow(QFrame):
         self.level_spin.setValue(initial_level)
         self.level_spin.setFixedWidth(50)
         row1.addWidget(self.level_spin)
+
+        self.remove_btn = QPushButton("X")
+        self.remove_btn.setFixedSize(24, 24)
+        self.remove_btn.setToolTip("Remove from party")
+        self.remove_btn.setStyleSheet("QPushButton { color: #e74c3c; font-weight: bold; border: 1px solid #555; border-radius: 3px; } QPushButton:hover { background: #c0392b; color: white; }")
+        self.remove_btn.clicked.connect(lambda: self.removed.emit())
+        row1.addWidget(self.remove_btn)
         fields.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -152,49 +168,44 @@ class PlayerSpriteRow(QFrame):
         self.hp_spin = QSpinBox()
         self.hp_spin.setRange(1, 9999)
         self.hp_spin.setValue(initial_hp)
-        self.hp_spin.setFixedWidth(60)
+        self.hp_spin.setFixedWidth(55)
         row2.addWidget(self.hp_spin)
 
         row2.addWidget(QLabel("AC:"))
         self.ac_spin = QSpinBox()
         self.ac_spin.setRange(0, 30)
         self.ac_spin.setValue(initial_ac)
-        self.ac_spin.setFixedWidth(60)
+        self.ac_spin.setFixedWidth(45)
         row2.addWidget(self.ac_spin)
 
         row2.addWidget(QLabel("Size:"))
         self.size_slider = QSlider(Qt.Horizontal)
         self.size_slider.setRange(20, 400)
         self.size_slider.setValue(initial_size)
-        self.size_slider.setMinimumWidth(60)
         row2.addWidget(self.size_slider, 1)
         self.size_label = QLabel(f"{initial_size}%")
-        self.size_label.setFixedWidth(35)
+        self.size_label.setFixedWidth(32)
         self.size_slider.valueChanged.connect(lambda v: self.size_label.setText(f"{v}%"))
         row2.addWidget(self.size_label)
-        fields.addLayout(row2)
 
-        # Row 3: Familiar picker
-        row3 = QHBoxLayout()
-        row3.setSpacing(4)
-        row3.addWidget(QLabel("Familiar:"))
+        row2.addWidget(QLabel("Fam:"))
         self.familiar_combo = QComboBox()
         self.familiar_combo.addItem("None", "")
         for fname, fpath in self.FAMILIAR_CHOICES:
             self.familiar_combo.addItem(fname, fpath)
-        # Set initial
         if initial_familiar:
             idx = self.familiar_combo.findData(initial_familiar)
             if idx >= 0:
                 self.familiar_combo.setCurrentIndex(idx)
-        row3.addWidget(self.familiar_combo, 1)
-        fields.addLayout(row3)
+        self.familiar_combo.setMinimumWidth(100)
+        row2.addWidget(self.familiar_combo)
+        fields.addLayout(row2)
 
         outer.addLayout(fields, 1)
 
     def get_config(self):
         return {
-            "enabled": self.enabled_check.isChecked(),
+            "enabled": True,
             "name": self.name_edit.text(),
             "level": self.level_spin.value(),
             "hp": self.hp_spin.value(),
@@ -202,6 +213,26 @@ class PlayerSpriteRow(QFrame):
             "size": self.size_slider.value(),
             "familiar": self.familiar_combo.currentData() or "",
         }
+
+
+def _parse_sprite_races_classes(sprites):
+    """Parse Race_Class.png filenames into a dict of {(race, cls): TokenData}."""
+    combos = {}
+    races = set()
+    classes = set()
+    for sprite in sprites:
+        base = os.path.splitext(sprite.name)[0]  # e.g. "Human_Fighter"
+        parts = base.rsplit('_', 1)
+        if len(parts) == 2:
+            race, cls = parts[0].replace('_', ' '), parts[1]
+            races.add(race)
+            classes.add(cls)
+            combos[(race, cls)] = sprite
+        else:
+            # Single-word names like "Artificer" — treat as classless
+            races.add(base)
+            combos[(base, "")] = sprite
+    return combos, sorted(races), sorted(classes)
 
 
 class LauncherWindow(QWidget):
@@ -213,152 +244,170 @@ class LauncherWindow(QWidget):
         self.on_launch = on_launch
         self.setWindowTitle("D&D Map Interactive Launcher")
         self.showMaximized()
-        
-        self._updating = False
-        self.token_rows = {} # TokenData -> TokenConfigRow
-        self.monster_rows = {} # TokenData -> TokenConfigRow (from monster library)
-        self.player_rows = {} # TokenData -> PlayerSpriteRow
-        
-        main_layout = QVBoxLayout(self)
-        
-        # 1. Folder Selection
-        main_layout.addWidget(QLabel("<h3>1. Select Adventure Folder</h3>"))
-        self.folder_combo = QComboBox()
-        self.folder_combo.setMinimumHeight(35)
-        self.folder_combo.currentIndexChanged.connect(self.update_folder_selection)
-        main_layout.addWidget(self.folder_combo)
-        
-        # 2. Map Selection
-        main_layout.addWidget(QLabel("<h3>2. Select Map</h3>"))
-        self.map_list = QListWidget()
-        self.map_list.setMinimumHeight(150)
-        self.map_list.currentRowChanged.connect(self.load_map_config)
-        main_layout.addWidget(self.map_list)
 
-        # Map Overrides Frame
-        map_cfg_frame = QFrame()
-        map_cfg_frame.setFrameStyle(QFrame.Box | QFrame.Plain)
-        map_cfg_layout = QFormLayout(map_cfg_frame)
-        
+        self._updating = False
+        self.token_rows = {}
+        self.monster_rows = {}
+        self.player_rows = {}
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(6)
+
+        # ── Folder + Map selection (always visible at top) ──
+        top = QHBoxLayout()
+        top.addWidget(QLabel("<b>Adventure:</b>"))
+        self.folder_combo = QComboBox()
+        self.folder_combo.setMinimumHeight(30)
+        self.folder_combo.currentIndexChanged.connect(self.update_folder_selection)
+        top.addWidget(self.folder_combo, 1)
+        top.addWidget(QLabel("<b>Map:</b>"))
+        self.map_list = QComboBox()
+        self.map_list.setMinimumHeight(30)
+        self.map_list.currentIndexChanged.connect(self.load_map_config)
+        top.addWidget(self.map_list, 1)
+        root.addLayout(top)
+
+        # Grid config row
+        grid_row = QHBoxLayout()
+        grid_row.addWidget(QLabel("Cols:"))
         self.width_spin = QSpinBox()
         self.width_spin.setRange(1, 200)
+        self.width_spin.valueChanged.connect(self._auto_save_config)
+        grid_row.addWidget(self.width_spin)
+        grid_row.addWidget(QLabel("Rows:"))
         self.height_spin = QSpinBox()
         self.height_spin.setRange(1, 200)
-        
+        self.height_spin.valueChanged.connect(self._auto_save_config)
+        grid_row.addWidget(self.height_spin)
+        grid_row.addWidget(QLabel("Zoom:"))
         self.grid_scale_slider = QSlider(Qt.Horizontal)
         self.grid_scale_slider.setRange(50, 300)
         self.grid_scale_slider.setValue(100)
+        self.grid_scale_slider.valueChanged.connect(self._auto_save_config)
         self.grid_scale_label = QLabel("100%")
         self.grid_scale_slider.valueChanged.connect(lambda v: self.grid_scale_label.setText(f"{v}%"))
-        
-        # Connect auto-save
-        self.width_spin.valueChanged.connect(self._auto_save_config)
-        self.height_spin.valueChanged.connect(self._auto_save_config)
-        self.grid_scale_slider.valueChanged.connect(self._auto_save_config)
-        
-        map_cfg_layout.addRow("Grid Columns (X):", self.width_spin)
-        map_cfg_layout.addRow("Grid Rows (Y):", self.height_spin)
-        
-        gs_row = QHBoxLayout()
-        gs_row.addWidget(self.grid_scale_slider)
-        gs_row.addWidget(self.grid_scale_label)
-        map_cfg_layout.addRow("Global Map Zoom:", gs_row)
-        
-        main_layout.addWidget(map_cfg_frame)
-        
-        # 3. Character Setup
-        main_layout.addWidget(QLabel("<h3>3. Character Tokens</h3>"))
-        
+        grid_row.addWidget(self.grid_scale_slider, 1)
+        grid_row.addWidget(self.grid_scale_label)
+        root.addLayout(grid_row)
+
+        # ── Tabs ──
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("QTabBar::tab { min-width: 120px; padding: 8px 16px; font-weight: bold; }")
+        root.addWidget(self.tabs, 1)
+
+        # --- Tab 1: Encounter Tokens ---
+        enc_tab = QWidget()
+        enc_layout = QVBoxLayout(enc_tab)
+        enc_layout.addWidget(QLabel("Tokens from the encounter folder — set Qty > 0 to include:"))
         self.token_scroll = QScrollArea()
         self.token_scroll.setWidgetResizable(True)
         self.token_container = QWidget()
         self.token_layout = QVBoxLayout(self.token_container)
         self.token_layout.setAlignment(Qt.AlignTop)
         self.token_scroll.setWidget(self.token_container)
-        main_layout.addWidget(self.token_scroll)
+        enc_layout.addWidget(self.token_scroll)
+        self.tabs.addTab(enc_tab, "Encounter Tokens")
 
-        # 3b. Monster Library (from monster_tokens/ folder)
-        main_layout.addWidget(QLabel("<h3>3b. Monster Library</h3>"))
-        lib_hint = QLabel("<small>Shared tokens from <b>monster_tokens/</b> folder — set qty > 0 to add</small>")
-        lib_hint.setStyleSheet("color: #888;")
-        main_layout.addWidget(lib_hint)
-
+        # --- Tab 2: Monster Library ---
+        mon_tab = QWidget()
+        mon_layout = QVBoxLayout(mon_tab)
+        mon_layout.addWidget(QLabel("Shared tokens from <b>monster_tokens/</b> folder — set Qty > 0 to add:"))
         self.monster_scroll = QScrollArea()
         self.monster_scroll.setWidgetResizable(True)
-        self.monster_scroll.setMaximumHeight(200)
         self.monster_container = QWidget()
         self.monster_layout = QVBoxLayout(self.monster_container)
         self.monster_layout.setAlignment(Qt.AlignTop)
         self.monster_scroll.setWidget(self.monster_container)
-        main_layout.addWidget(self.monster_scroll)
+        mon_layout.addWidget(self.monster_scroll)
+        self.tabs.addTab(mon_tab, "Monster Library")
 
-        # 4. Player Characters — Team system
-        main_layout.addWidget(QLabel("<h3>4. Player Characters</h3>"))
+        # --- Tab 3: Party / Teams ---
+        party_tab = QWidget()
+        party_layout = QVBoxLayout(party_tab)
 
         # Team picker row
         team_row = QHBoxLayout()
-        team_row.addWidget(QLabel("Team:"))
+        team_row.addWidget(QLabel("<b>Team:</b>"))
         self.team_combo = QComboBox()
         self.team_combo.setMinimumWidth(150)
         self.team_combo.currentIndexChanged.connect(self._on_team_selected)
         team_row.addWidget(self.team_combo, 1)
-
-        self.save_team_btn = QPushButton("Save Team")
-        self.save_team_btn.setStyleSheet("font-weight: bold;")
+        self.save_team_btn = QPushButton("Save")
         self.save_team_btn.clicked.connect(self._save_team)
         team_row.addWidget(self.save_team_btn)
-
         self.save_as_team_btn = QPushButton("Save As...")
         self.save_as_team_btn.clicked.connect(self._save_team_as)
         team_row.addWidget(self.save_as_team_btn)
-
         self.delete_team_btn = QPushButton("Delete")
         self.delete_team_btn.clicked.connect(self._delete_team)
         team_row.addWidget(self.delete_team_btn)
-        main_layout.addLayout(team_row)
+        party_layout.addLayout(team_row)
 
-        sprites_hint = QLabel("<small>Sprites from <b>player_sprites/</b> — check to include, configure stats, then Save Team</small>")
-        sprites_hint.setStyleSheet("color: #888;")
-        main_layout.addWidget(sprites_hint)
+        # ── Race / Class picker ──
+        picker_row = QHBoxLayout()
+        picker_row.addWidget(QLabel("<b>Race:</b>"))
+        self.race_combo = QComboBox()
+        self.race_combo.setMinimumWidth(120)
+        self.race_combo.currentIndexChanged.connect(self._update_sprite_preview)
+        picker_row.addWidget(self.race_combo)
+        picker_row.addWidget(QLabel("<b>Class:</b>"))
+        self.class_combo = QComboBox()
+        self.class_combo.setMinimumWidth(120)
+        self.class_combo.currentIndexChanged.connect(self._update_sprite_preview)
+        picker_row.addWidget(self.class_combo)
 
+        self.sprite_preview = QLabel()
+        self.sprite_preview.setFixedSize(50, 50)
+        self.sprite_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        picker_row.addWidget(self.sprite_preview)
+
+        self.add_player_btn = QPushButton("+ Add to Party")
+        self.add_player_btn.setStyleSheet("QPushButton { background: #2980b9; color: white; font-weight: bold; padding: 6px 14px; border-radius: 4px; } QPushButton:hover { background: #3498db; }")
+        self.add_player_btn.clicked.connect(self._add_player_from_picker)
+        picker_row.addWidget(self.add_player_btn)
+        picker_row.addStretch()
+        party_layout.addLayout(picker_row)
+
+        # ── Active Party list ──
+        party_layout.addWidget(QLabel("Active party members:"))
         self.player_scroll = QScrollArea()
         self.player_scroll.setWidgetResizable(True)
         self.player_container = QWidget()
         self.player_layout = QVBoxLayout(self.player_container)
         self.player_layout.setAlignment(Qt.AlignTop)
         self.player_scroll.setWidget(self.player_container)
-        main_layout.addWidget(self.player_scroll)
+        party_layout.addWidget(self.player_scroll)
+        self.tabs.addTab(party_tab, "Party / Teams")
 
-        # Launch
-        bottom_frame = QFrame()
-        bottom_layout = QVBoxLayout(bottom_frame)
+        # Sprite data cache (populated in _rebuild_player_sprites)
+        self._sprite_combos = {}  # (race, cls) -> TokenData
+        self._sprite_races = []
+        self._sprite_classes = []
 
-        self.launch_btn = QPushButton("LAUNCH INTERACTIVE SESSION")
+        # ── Launch button (always visible) ──
+        self.launch_btn = QPushButton("LAUNCH SESSION")
         self.launch_btn.clicked.connect(self.handle_launch)
-        self.launch_btn.setMinimumHeight(70)
+        self.launch_btn.setMinimumHeight(50)
         self.launch_btn.setStyleSheet("""
             QPushButton {
-                background-color: #27ae60;
-                color: white;
-                font-weight: bold;
-                font-size: 16px;
-                border-radius: 5px;
+                background-color: #27ae60; color: white;
+                font-weight: bold; font-size: 15px; border-radius: 5px;
             }
             QPushButton:hover { background-color: #2ecc71; }
         """)
-        bottom_layout.addWidget(self.launch_btn)
-        main_layout.addWidget(bottom_frame)
-        
+        root.addWidget(self.launch_btn)
+
         # Debounce timer for scanner updates
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setSingleShot(True)
         self.refresh_timer.timeout.connect(self.refresh_folders)
-        
+
         self.scanner_updated.connect(lambda: self.refresh_timer.start(500))
         self.scanner.on_update_callback = lambda: self.scanner_updated.emit()
-        
-        # Initial trigger
-        QTimer.singleShot(100, self.refresh_folders)
+
+        # Initial trigger (deferred so window shows first)
+        QTimer.singleShot(0, self.refresh_folders)
 
     @Slot()
     def refresh_folders(self):
@@ -449,7 +498,7 @@ class LauncherWindow(QWidget):
 
         # 6. Trigger map config load for the first map
         if self.map_list.count() > 0:
-            self.map_list.setCurrentRow(0)
+            self.map_list.setCurrentIndex(0)
 
     @Slot(int)
     def load_map_config(self, index):
@@ -458,12 +507,12 @@ class LauncherWindow(QWidget):
         folder_name = self.folder_combo.currentText().strip()
         if not folder_name or folder_name not in self.scanner.folders: return
             
-        map_item = self.map_list.item(index)
+        map_item = self.map_list.itemText(index) if index >= 0 else None
         if not map_item: return
         
         folder_data = self.scanner.folders[folder_name]
         try:
-            map_data = next(m for m in folder_data.maps if m.name == map_item.text())
+            map_data = next(m for m in folder_data.maps if m.name == map_item)
             # Block signals to prevent auto-save loop during load
             self.width_spin.blockSignals(True)
             self.height_spin.blockSignals(True)
@@ -528,8 +577,8 @@ class LauncherWindow(QWidget):
             self.monster_rows[token] = row
 
     def _rebuild_player_sprites(self):
-        """Rebuild the player sprites list from scanner."""
-        # Clear existing rows
+        """Rebuild the Race/Class picker and active party from scanner."""
+        # Clear existing party rows
         while self.player_layout.count():
             item = self.player_layout.takeAt(0)
             w = item.widget() if item else None
@@ -538,23 +587,36 @@ class LauncherWindow(QWidget):
                 w.deleteLater()
         self.player_rows = {}
 
-        # Build familiar choices from summon catalog + token files
+        # Build familiar choices from summon_tokens/ folder
         familiar_choices = []
-        try:
-            from core.summons import SUMMON_CATALOG
-            summon_dir = os.path.join(self.scanner.base_path, "summon_tokens")
-            for name, data in sorted(SUMMON_CATALOG.items()):
-                if data.get("category") in ("Familiar", "Beast"):
-                    safe = name.replace(' ', '_').replace('(', '').replace(')', '').replace("'", '')
-                    token_path = os.path.join(summon_dir, f"{safe}.png")
-                    if not os.path.isfile(token_path):
-                        token_path = ""
-                    familiar_choices.append((name, token_path))
-        except ImportError:
-            pass
+        summon_dir = os.path.join(self.scanner.base_path, "summon_tokens")
+        if os.path.isdir(summon_dir):
+            for png in sorted(globfiles(os.path.join(summon_dir, "*.png"))):
+                fname = os.path.splitext(os.path.basename(png))[0].replace('_', ' ')
+                familiar_choices.append((fname, png))
         PlayerSpriteRow.FAMILIAR_CHOICES = familiar_choices
 
-        # Load saved player config from current encounter folder
+        # Parse sprite filenames into race/class combos
+        if self.scanner.player_sprites:
+            self._sprite_combos, self._sprite_races, self._sprite_classes = \
+                _parse_sprite_races_classes(self.scanner.player_sprites)
+        else:
+            self._sprite_combos, self._sprite_races, self._sprite_classes = {}, [], []
+
+        # Populate race/class combo boxes
+        self.race_combo.blockSignals(True)
+        self.class_combo.blockSignals(True)
+        self.race_combo.clear()
+        self.class_combo.clear()
+        for r in self._sprite_races:
+            self.race_combo.addItem(r)
+        for c in self._sprite_classes:
+            self.class_combo.addItem(c)
+        self.race_combo.blockSignals(False)
+        self.class_combo.blockSignals(False)
+        self._update_sprite_preview()
+
+        # Load saved player config and add enabled players to the party
         saved_players = {}
         folder_name = self.folder_combo.currentText().strip()
         if folder_name and folder_name in self.scanner.folders:
@@ -567,33 +629,71 @@ class LauncherWindow(QWidget):
                 except:
                     pass
 
-        if not self.scanner.player_sprites:
-            empty_label = QLabel("<i>No sprites found. Add PNGs to player_sprites/ folder.</i>")
-            empty_label.setStyleSheet("color: #666; padding: 10px;")
-            self.player_layout.addWidget(empty_label)
-            return
+        # Re-add enabled players from saved config
+        for sprite_name, cfg in saved_players.items():
+            if cfg.get("enabled", False):
+                # Find matching TokenData
+                sprite = next((s for s in self.scanner.player_sprites if s.name == sprite_name), None)
+                if sprite:
+                    self._add_player_row(sprite, cfg)
 
-        for sprite in self.scanner.player_sprites:
-            cfg = saved_players.get(sprite.name, {})
-            row = PlayerSpriteRow(
-                sprite,
-                initial_enabled=cfg.get("enabled", False),
-                initial_name=cfg.get("name", ""),
-                initial_level=cfg.get("level", 1),
-                initial_hp=cfg.get("hp", 20),
-                initial_ac=cfg.get("ac", 12),
-                initial_size=cfg.get("size", 100),
-                initial_familiar=cfg.get("familiar", ""),
-            )
-            row.enabled_check.toggled.connect(self._auto_save_config)
-            row.name_edit.textChanged.connect(self._auto_save_config)
-            row.level_spin.valueChanged.connect(self._auto_save_config)
-            row.hp_spin.valueChanged.connect(self._auto_save_config)
-            row.ac_spin.valueChanged.connect(self._auto_save_config)
-            row.size_slider.valueChanged.connect(self._auto_save_config)
-            row.familiar_combo.currentIndexChanged.connect(self._auto_save_config)
-            self.player_layout.addWidget(row)
-            self.player_rows[sprite] = row
+    def _update_sprite_preview(self):
+        """Update the preview thumbnail based on current Race/Class selection."""
+        race = self.race_combo.currentText()
+        cls = self.class_combo.currentText()
+        sprite = self._sprite_combos.get((race, cls))
+        if sprite:
+            pix = QPixmap(sprite.path)
+            if not pix.isNull():
+                self.sprite_preview.setPixmap(pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self.sprite_preview.setToolTip(sprite.name)
+                return
+        self.sprite_preview.clear()
+        self.sprite_preview.setText("?")
+        self.sprite_preview.setToolTip("No sprite for this combo")
+
+    def _add_player_from_picker(self):
+        """Add the currently selected Race/Class combo to the active party."""
+        race = self.race_combo.currentText()
+        cls = self.class_combo.currentText()
+        sprite = self._sprite_combos.get((race, cls))
+        if not sprite:
+            return
+        # Don't add duplicates
+        if sprite in self.player_rows:
+            return
+        self._add_player_row(sprite, {})
+        self._auto_save_config()
+
+    def _add_player_row(self, sprite, cfg):
+        """Add a PlayerSpriteRow for the given sprite with config."""
+        row = PlayerSpriteRow(
+            sprite,
+            initial_name=cfg.get("name", ""),
+            initial_level=cfg.get("level", 1),
+            initial_hp=cfg.get("hp", 20),
+            initial_ac=cfg.get("ac", 12),
+            initial_size=cfg.get("size", 100),
+            initial_familiar=cfg.get("familiar", ""),
+        )
+        row.removed.connect(lambda s=sprite: self._remove_player(s))
+        row.name_edit.textChanged.connect(self._auto_save_config)
+        row.level_spin.valueChanged.connect(self._auto_save_config)
+        row.hp_spin.valueChanged.connect(self._auto_save_config)
+        row.ac_spin.valueChanged.connect(self._auto_save_config)
+        row.size_slider.valueChanged.connect(self._auto_save_config)
+        row.familiar_combo.currentIndexChanged.connect(self._auto_save_config)
+        self.player_layout.addWidget(row)
+        self.player_rows[sprite] = row
+
+    def _remove_player(self, sprite):
+        """Remove a player from the active party."""
+        row = self.player_rows.pop(sprite, None)
+        if row:
+            self.player_layout.removeWidget(row)
+            row.setParent(None)
+            row.deleteLater()
+            self._auto_save_config()
 
     # -- Team management ---------------------------------------------------
 
@@ -631,7 +731,7 @@ class LauncherWindow(QWidget):
         self.team_combo.blockSignals(False)
 
     def _on_team_selected(self, index):
-        """Load a team's config into the player sprite rows."""
+        """Load a team's config — clear party, add enabled members."""
         if self._updating:
             return
         team_name = self.team_combo.currentText()
@@ -641,16 +741,16 @@ class LauncherWindow(QWidget):
         team = teams.get(team_name, {})
         if not team:
             return
-        # Apply team config to player sprite rows
+        # Clear current party
         self._updating = True
-        for sprite, row in self.player_rows.items():
-            cfg = team.get(sprite.name, {})
-            row.enabled_check.setChecked(cfg.get("enabled", False))
-            if cfg.get("name"):
-                row.name_edit.setText(cfg["name"])
-            row.hp_spin.setValue(cfg.get("hp", 20))
-            row.ac_spin.setValue(cfg.get("ac", 12))
-            row.size_slider.setValue(cfg.get("size", 100))
+        for sprite in list(self.player_rows.keys()):
+            self._remove_player(sprite)
+        # Add team members
+        for sprite_name, cfg in team.items():
+            if cfg.get("enabled", False):
+                sprite = next((s for s in self.scanner.player_sprites if s.name == sprite_name), None)
+                if sprite:
+                    self._add_player_row(sprite, cfg)
         self._updating = False
         self._auto_save_config()
 
@@ -705,12 +805,12 @@ class LauncherWindow(QWidget):
     def _auto_save_config(self):
         if self._updating: return
         folder_name = self.folder_combo.currentText().strip()
-        map_item = self.map_list.currentItem()
+        map_item = self.map_list.currentText()
         if not folder_name or not map_item or folder_name not in self.scanner.folders:
             return
             
         folder_data = self.scanner.folders[folder_name]
-        map_name = map_item.text()
+        map_name = map_item
         
         try:
             map_data = next(m for m in folder_data.maps if m.name == map_name)
@@ -764,14 +864,14 @@ class LauncherWindow(QWidget):
 
     def handle_launch(self):
         folder_name = self.folder_combo.currentText().strip()
-        map_item = self.map_list.currentItem()
+        map_item = self.map_list.currentText()
         
         if not folder_name or not map_item: return
         if folder_name not in self.scanner.folders: return
         folder_data = self.scanner.folders[folder_name]
         
         try:
-            map_name = map_item.text()
+            map_name = map_item
             map_data = next(m for m in folder_data.maps if m.name == map_name)
             
             # Sync UI to data before last save

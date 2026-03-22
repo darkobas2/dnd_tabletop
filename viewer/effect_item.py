@@ -223,7 +223,7 @@ class EffectItem(QGraphicsItem):
         scene_pos = self.scenePos()
         sr = self._shape_rect()
         font = painter.font()
-        font_size = max(9, int(gs * 0.22))
+        font_size = min(12, max(8, int(gs * 0.15)))
         font.setPointSize(font_size)
         font.setBold(True)
         painter.setFont(font)

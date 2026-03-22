@@ -121,6 +121,7 @@ PLAYER_HTML = r"""<!DOCTYPE html>
 <body>
 <div id="status" class="disconnected">Connecting...</div>
 <div id="round-info"></div>
+<div style="position:fixed;bottom:4px;right:8px;font:10px/1.2 system-ui;color:rgba(255,255,255,0.3);pointer-events:none;">Token art &copy; 2minutetabletop.com</div>
 <canvas id="board"></canvas>
 
 <script>

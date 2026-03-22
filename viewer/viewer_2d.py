@@ -76,6 +76,11 @@ class MapViewer(QMainWindow):
         self._exit_btn.clicked.connect(self.close)
         self._exit_btn.raise_()
 
+        # Copyright notice
+        self._credit_label = QLabel("Token art \u00a9 2minutetabletop.com", self)
+        self._credit_label.setStyleSheet("color: rgba(255,255,255,80); font-size: 9px; background: transparent;")
+        self._credit_label.setFixedHeight(14)
+
     def _setup_menu(self):
         """Create menu bar with View menu to restore panels."""
         menubar = self.menuBar()
@@ -669,6 +674,8 @@ class MapViewer(QMainWindow):
         if hasattr(self, '_exit_btn'):
             self._exit_btn.move(self.width() - self._exit_btn.width() - 10, 8)
             self._exit_btn.raise_()
+        if hasattr(self, '_credit_label'):
+            self._credit_label.move(self.width() - 180, self.height() - 18)
 
     def closeEvent(self, event):
         """Clean up server and effects on close."""
