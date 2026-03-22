@@ -28,7 +28,8 @@ class FolderData:
     maps: List[MapData] = field(default_factory=list)
     tokens: List[TokenData] = field(default_factory=list)
 
-SKIP_FOLDERS = {'__pycache__', 'player_sprites', 'core', 'ui', 'viewer', 'net'}
+SKIP_FOLDERS = {'__pycache__', 'player_sprites', 'monster_tokens', 'summon_tokens',
+                'core', 'ui', 'viewer', 'net', '_config', '.claude', '.playwright-mcp'}
 
 class DNDScanner:
     PLAYER_SPRITES_DIR = "player_sprites"
@@ -37,6 +38,7 @@ class DNDScanner:
         self.base_path = base_path
         self.folders: Dict[str, FolderData] = {}
         self.player_sprites: List[TokenData] = []
+        self.monster_tokens: List[TokenData] = []
         self.on_update_callback = None
 
     def scan_all(self):
@@ -44,9 +46,11 @@ class DNDScanner:
         if not os.path.exists(self.base_path):
             self.folders = {}
             self.player_sprites = []
+            self.monster_tokens = []
             return
 
         self.player_sprites = self._scan_player_sprites()
+        self.monster_tokens = self._scan_token_dir("monster_tokens")
 
         for folder_name in os.listdir(self.base_path):
             folder_path = os.path.join(self.base_path, folder_name)
@@ -119,18 +123,21 @@ class DNDScanner:
         return data
 
     def _scan_player_sprites(self) -> List[TokenData]:
-        """Scan the player_sprites/ folder for character sprite PNGs."""
-        sprites_dir = os.path.join(self.base_path, self.PLAYER_SPRITES_DIR)
-        if not os.path.isdir(sprites_dir):
+        return self._scan_token_dir(self.PLAYER_SPRITES_DIR)
+
+    def _scan_token_dir(self, dirname: str) -> List[TokenData]:
+        """Scan a token directory for image files."""
+        token_dir = os.path.join(self.base_path, dirname)
+        if not os.path.isdir(token_dir):
             return []
-        sprites = []
-        for fname in sorted(os.listdir(sprites_dir)):
+        tokens = []
+        for fname in sorted(os.listdir(token_dir)):
             if fname.lower().endswith(('.png', '.jpg', '.jpeg')) and not fname.startswith('.'):
-                sprites.append(TokenData(
-                    path=os.path.join(sprites_dir, fname),
+                tokens.append(TokenData(
+                    path=os.path.join(token_dir, fname),
                     name=fname
                 ))
-        return sprites
+        return tokens
 
     def save_folder_config(self, folder_path: str, config_data: dict):
         config_path = os.path.join(folder_path, "config.json")

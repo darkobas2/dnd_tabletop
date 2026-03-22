@@ -39,6 +39,112 @@
             "is_player": false
         }
     },
+    "monster_library": {
+        "Bandit.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Bandit",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Beholder.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Beholder",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Bugbear.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Bugbear",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Goblin.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Goblin",
+            "hp": 10,
+            "ac": 10,
+            "is_player": true
+        },
+        "Hobgoblin.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Hobgoblin",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Kobold.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Kobold",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Lich.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Lich",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Mimic.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Mimic",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Mind_Flayer.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Mind Flayer",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Ogre.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Ogre",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Owlbear.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Owl Bear",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Troll.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Troll",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Werewolf.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Werewolf",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        }
+    },
     "player_sprites": {
         "Barbarian.png": {
             "enabled": false,
@@ -94,7 +200,7 @@
             "level": 1,
             "hp": 20,
             "ac": 12,
-            "size": 100
+            "size": 118
         },
         "Ranger.png": {
             "enabled": false,
@@ -109,7 +215,7 @@
             "name": "Rogue",
             "level": 1,
             "hp": 20,
-            "ac": 12,
+            "ac": 14,
             "size": 103
         },
         "Sorcerer.png": {
@@ -161,6 +267,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -189,6 +296,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -217,6 +325,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -245,6 +354,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -273,6 +383,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -293,7 +404,7 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                6,
+                4,
                 3
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
@@ -301,6 +412,123 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "f9f30d22-3385-4399-933a-a6c4d49eacc5",
+            "name": "Bugbear",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                6,
+                2
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Bugbear.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "2851da65-69c4-4c7a-914b-dc671de80a31",
+            "name": "Goblin",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                8,
+                1
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Goblin.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "bf80dbb1-fc5a-475f-8935-17d27c6a485d",
+            "name": "Bard",
+            "hp": 30,
+            "hp_max": 30,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                7,
+                1
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Bard.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "c4ed17b9-ad19-4d37-88eb-5858a059fe16",
+            "name": "Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 9,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                8,
+                2
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Cleric.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -329,6 +557,7 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -353,10 +582,11 @@
                 4
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Fighter.png",
-            "token_scale": 1.0,
+            "token_scale": 0.97,
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
@@ -385,10 +615,28 @@
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
+            "character_sheet": null,
             "death_saves": {
                 "successes": 0,
                 "failures": 0
             }
+        }
+    ],
+    "effects": [
+        {
+            "id": "135a22d8-8194-410d-bc0a-5363727ece69",
+            "name": "Antimagic Field",
+            "shape": "circle",
+            "position": [
+                5,
+                4
+            ],
+            "radius": 2,
+            "color": "#a0a0d0",
+            "opacity": 0.45,
+            "animation": "pulse",
+            "rotation": 0.0,
+            "visible": true
         }
     ]
 }

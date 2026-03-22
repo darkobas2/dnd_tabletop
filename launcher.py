@@ -93,9 +93,14 @@ class TokenConfigRow(QFrame):
         }
 
 class PlayerSpriteRow(QFrame):
-    """Widget for a player character sprite — checkbox, preview, name, level, HP, AC, size."""
+    """Widget for a player character sprite — checkbox, preview, name, level, HP, AC, size, familiar."""
+
+    # Class-level list of available familiars (populated once by launcher)
+    FAMILIAR_CHOICES = []
+
     def __init__(self, token_data: TokenData, initial_enabled=False,
-                 initial_name="", initial_level=1, initial_hp=20, initial_ac=12, initial_size=100):
+                 initial_name="", initial_level=1, initial_hp=20, initial_ac=12,
+                 initial_size=100, initial_familiar=""):
         super().__init__()
         self.token_data = token_data
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
@@ -169,6 +174,22 @@ class PlayerSpriteRow(QFrame):
         row2.addWidget(self.size_label)
         fields.addLayout(row2)
 
+        # Row 3: Familiar picker
+        row3 = QHBoxLayout()
+        row3.setSpacing(4)
+        row3.addWidget(QLabel("Familiar:"))
+        self.familiar_combo = QComboBox()
+        self.familiar_combo.addItem("None", "")
+        for fname, fpath in self.FAMILIAR_CHOICES:
+            self.familiar_combo.addItem(fname, fpath)
+        # Set initial
+        if initial_familiar:
+            idx = self.familiar_combo.findData(initial_familiar)
+            if idx >= 0:
+                self.familiar_combo.setCurrentIndex(idx)
+        row3.addWidget(self.familiar_combo, 1)
+        fields.addLayout(row3)
+
         outer.addLayout(fields, 1)
 
     def get_config(self):
@@ -179,6 +200,7 @@ class PlayerSpriteRow(QFrame):
             "hp": self.hp_spin.value(),
             "ac": self.ac_spin.value(),
             "size": self.size_slider.value(),
+            "familiar": self.familiar_combo.currentData() or "",
         }
 
 
@@ -194,6 +216,7 @@ class LauncherWindow(QWidget):
         
         self._updating = False
         self.token_rows = {} # TokenData -> TokenConfigRow
+        self.monster_rows = {} # TokenData -> TokenConfigRow (from monster library)
         self.player_rows = {} # TokenData -> PlayerSpriteRow
         
         main_layout = QVBoxLayout(self)
@@ -253,6 +276,21 @@ class LauncherWindow(QWidget):
         self.token_layout.setAlignment(Qt.AlignTop)
         self.token_scroll.setWidget(self.token_container)
         main_layout.addWidget(self.token_scroll)
+
+        # 3b. Monster Library (from monster_tokens/ folder)
+        main_layout.addWidget(QLabel("<h3>3b. Monster Library</h3>"))
+        lib_hint = QLabel("<small>Shared tokens from <b>monster_tokens/</b> folder — set qty > 0 to add</small>")
+        lib_hint.setStyleSheet("color: #888;")
+        main_layout.addWidget(lib_hint)
+
+        self.monster_scroll = QScrollArea()
+        self.monster_scroll.setWidgetResizable(True)
+        self.monster_scroll.setMaximumHeight(200)
+        self.monster_container = QWidget()
+        self.monster_layout = QVBoxLayout(self.monster_container)
+        self.monster_layout.setAlignment(Qt.AlignTop)
+        self.monster_scroll.setWidget(self.monster_container)
+        main_layout.addWidget(self.monster_scroll)
 
         # 4. Player Characters — Team system
         main_layout.addWidget(QLabel("<h3>4. Player Characters</h3>"))
@@ -339,6 +377,7 @@ class LauncherWindow(QWidget):
             self.folder_combo.setCurrentIndex(0)
         
         self._updating = False
+        self._rebuild_monster_library()
         self._rebuild_player_sprites()
         self._refresh_team_combo()
         # Use QTimer to ensure the combo box index change signals have fired
@@ -404,7 +443,8 @@ class LauncherWindow(QWidget):
 
         self._updating = False
 
-        # 5. Rebuild player sprites with per-encounter config
+        # 5. Rebuild monster library and player sprites with per-encounter config
+        self._rebuild_monster_library()
         self._rebuild_player_sprites()
 
         # 6. Trigger map config load for the first map
@@ -439,6 +479,54 @@ class LauncherWindow(QWidget):
             self.grid_scale_slider.blockSignals(False)
         except StopIteration: pass
 
+    def _rebuild_monster_library(self):
+        """Rebuild the monster library from monster_tokens/ folder."""
+        while self.monster_layout.count():
+            item = self.monster_layout.takeAt(0)
+            w = item.widget() if item else None
+            if w:
+                w.setParent(None)
+                w.deleteLater()
+        self.monster_rows = {}
+
+        # Load saved monster config from current encounter folder
+        saved_monsters = {}
+        folder_name = self.folder_combo.currentText().strip()
+        if folder_name and folder_name in self.scanner.folders:
+            folder_data = self.scanner.folders[folder_name]
+            config_path = os.path.join(folder_data.path, "config.json")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        saved_monsters = json.load(f).get("monster_library", {})
+                except:
+                    pass
+
+        if not self.scanner.monster_tokens:
+            empty = QLabel("<i>No monsters. Add PNGs to monster_tokens/ folder.</i>")
+            empty.setStyleSheet("color: #666; padding: 10px;")
+            self.monster_layout.addWidget(empty)
+            return
+
+        for token in self.scanner.monster_tokens:
+            cfg = saved_monsters.get(token.name, {"count": 0, "size": 100})
+            row = TokenConfigRow(
+                token,
+                initial_count=cfg.get("count", 0),
+                initial_size=cfg.get("size", 100),
+                initial_name=cfg.get("name", ""),
+                initial_hp=cfg.get("hp", 10),
+                initial_ac=cfg.get("ac", 10),
+                initial_is_player=False,
+            )
+            row.count_spin.valueChanged.connect(self._auto_save_config)
+            row.size_slider.valueChanged.connect(self._auto_save_config)
+            row.name_edit.textChanged.connect(self._auto_save_config)
+            row.hp_spin.valueChanged.connect(self._auto_save_config)
+            row.ac_spin.valueChanged.connect(self._auto_save_config)
+            self.monster_layout.addWidget(row)
+            self.monster_rows[token] = row
+
     def _rebuild_player_sprites(self):
         """Rebuild the player sprites list from scanner."""
         # Clear existing rows
@@ -449,6 +537,22 @@ class LauncherWindow(QWidget):
                 w.setParent(None)
                 w.deleteLater()
         self.player_rows = {}
+
+        # Build familiar choices from summon catalog + token files
+        familiar_choices = []
+        try:
+            from core.summons import SUMMON_CATALOG
+            summon_dir = os.path.join(self.scanner.base_path, "summon_tokens")
+            for name, data in sorted(SUMMON_CATALOG.items()):
+                if data.get("category") in ("Familiar", "Beast"):
+                    safe = name.replace(' ', '_').replace('(', '').replace(')', '').replace("'", '')
+                    token_path = os.path.join(summon_dir, f"{safe}.png")
+                    if not os.path.isfile(token_path):
+                        token_path = ""
+                    familiar_choices.append((name, token_path))
+        except ImportError:
+            pass
+        PlayerSpriteRow.FAMILIAR_CHOICES = familiar_choices
 
         # Load saved player config from current encounter folder
         saved_players = {}
@@ -479,6 +583,7 @@ class LauncherWindow(QWidget):
                 initial_hp=cfg.get("hp", 20),
                 initial_ac=cfg.get("ac", 12),
                 initial_size=cfg.get("size", 100),
+                initial_familiar=cfg.get("familiar", ""),
             )
             row.enabled_check.toggled.connect(self._auto_save_config)
             row.name_edit.textChanged.connect(self._auto_save_config)
@@ -486,6 +591,7 @@ class LauncherWindow(QWidget):
             row.hp_spin.valueChanged.connect(self._auto_save_config)
             row.ac_spin.valueChanged.connect(self._auto_save_config)
             row.size_slider.valueChanged.connect(self._auto_save_config)
+            row.familiar_combo.currentIndexChanged.connect(self._auto_save_config)
             self.player_layout.addWidget(row)
             self.player_rows[sprite] = row
 
@@ -632,6 +738,10 @@ class LauncherWindow(QWidget):
             for sprite, row in self.player_rows.items():
                 player_configs[sprite.name] = row.get_config()
 
+            monster_configs = {}
+            for token, row in self.monster_rows.items():
+                monster_configs[token.name] = row.get_config()
+
             full_cfg = {
                 "maps": {
                     m.name: {
@@ -643,6 +753,7 @@ class LauncherWindow(QWidget):
                     for m in folder_data.maps
                 },
                 "tokens": token_configs,
+                "monster_library": monster_configs,
                 "player_sprites": player_configs,
             }
             # Preserve creatures saved by the viewer
@@ -680,7 +791,21 @@ class LauncherWindow(QWidget):
                     }
                     tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
 
+            # Add monsters from library (count > 0)
+            for t, row in self.monster_rows.items():
+                cfg = row.get_config()
+                if cfg["count"] > 0:
+                    creature_cfg = {
+                        "name": cfg.get("name", ""),
+                        "hp": cfg.get("hp", 10),
+                        "ac": cfg.get("ac", 10),
+                        "is_player": False,
+                    }
+                    tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
+
             # Add enabled player sprites (always count=1, is_player=True)
+            # Also collect familiars to spawn
+            familiars_to_add = []  # (familiar_name, token_path, owner_name)
             for sprite, row in self.player_rows.items():
                 cfg = row.get_config()
                 if cfg["enabled"]:
@@ -691,6 +816,27 @@ class LauncherWindow(QWidget):
                         "is_player": True,
                     }
                     tokens_to_add[sprite] = (1, cfg["size"] / 100.0, creature_cfg)
+
+                    # Check for familiar
+                    familiar_path = cfg.get("familiar", "")
+                    if familiar_path:
+                        # Find familiar name from path
+                        familiar_file = os.path.basename(familiar_path)
+                        familiar_name = familiar_file.replace('.png', '').replace('_', ' ')
+                        familiars_to_add.append((familiar_name, familiar_path, cfg["name"]))
+
+            # Add familiars as summon tokens
+            for fam_name, fam_path, owner_name in familiars_to_add:
+                if os.path.isfile(fam_path):
+                    fam_token = TokenData(path=fam_path, name=os.path.basename(fam_path))
+                    creature_cfg = {
+                        "name": f"{fam_name} ({owner_name})",
+                        "hp": 1,
+                        "ac": 11,
+                        "is_player": False,
+                        "familiar_of": owner_name,
+                    }
+                    tokens_to_add[fam_token] = (1, 0.5, creature_cfg)
 
             self._auto_save_config()
             self.on_launch(map_data, tokens_to_add)

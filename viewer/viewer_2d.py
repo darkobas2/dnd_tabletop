@@ -776,6 +776,14 @@ class _MapGraphicsView(QGraphicsView):
                                 token_scale=token_scale,
                                 position=(col_offset + i, 0)
                             )
+                            # Link familiar to owner
+                            familiar_of = creature_cfg.get("familiar_of", "")
+                            if familiar_of:
+                                for c in self.encounter.creatures:
+                                    if c.name == familiar_of and c.is_player:
+                                        creature.summoned_by = c.id
+                                        creature.summon_color = "#d2b48c"
+                                        break
                         self.encounter.add_creature(creature)
                     except ImportError:
                         pass
