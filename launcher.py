@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
                              QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
@@ -344,7 +345,38 @@ class LauncherWindow(QWidget):
         self._monster_grid_widgets = []  # [(wrapper_widget, token_data), ...]
         self.tabs.addTab(mon_tab, "Monster Library")
 
-        # --- Tab 3: Party / Teams ---
+        # --- Tab 3: Map Library ---
+        map_tab = QWidget()
+        map_layout = QVBoxLayout(map_tab)
+
+        # Category filter + search
+        map_filter_row = QHBoxLayout()
+        map_filter_row.addWidget(QLabel("<b>Location:</b>"))
+        self.map_category_combo = QComboBox()
+        self.map_category_combo.addItem("All")
+        self.map_category_combo.setMinimumWidth(120)
+        self.map_category_combo.currentIndexChanged.connect(self._filter_map_grid)
+        map_filter_row.addWidget(self.map_category_combo)
+
+        self.map_search = QLineEdit()
+        self.map_search.setPlaceholderText("Search maps...")
+        self.map_search.textChanged.connect(self._filter_map_grid)
+        map_filter_row.addWidget(self.map_search, 1)
+        map_layout.addLayout(map_filter_row)
+
+        map_layout.addWidget(QLabel("Click a map to use it for the current encounter:"))
+        self.map_lib_scroll = QScrollArea()
+        self.map_lib_scroll.setWidgetResizable(True)
+        self.map_lib_container = QWidget()
+        self.map_lib_grid = QGridLayout(self.map_lib_container)
+        self.map_lib_grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.map_lib_grid.setSpacing(8)
+        self.map_lib_scroll.setWidget(self.map_lib_container)
+        map_layout.addWidget(self.map_lib_scroll)
+        self._map_grid_widgets = []  # [(wrapper, category, name, path), ...]
+        self.tabs.addTab(map_tab, "Map Library")
+
+        # --- Tab 4: Party / Teams ---
         party_tab = QWidget()
         party_layout = QVBoxLayout(party_tab)
 
@@ -452,6 +484,7 @@ class LauncherWindow(QWidget):
         
         self._updating = False
         self._rebuild_monster_library()
+        self._rebuild_map_library()
         self._rebuild_player_sprites()
         self._refresh_team_combo()
         # Use QTimer to ensure the combo box index change signals have fired
@@ -664,6 +697,123 @@ class LauncherWindow(QWidget):
         self.token_rows[token] = row
         self.tabs.setCurrentIndex(0)  # Switch to Encounter Tokens tab
         self._auto_save_config()
+
+    def _rebuild_map_library(self):
+        """Build the map library grid from map_library/ folder."""
+        # Clear existing
+        for wrapper, *_ in self._map_grid_widgets:
+            wrapper.setParent(None)
+            wrapper.deleteLater()
+        self._map_grid_widgets = []
+
+        map_lib_path = os.path.join(self.scanner.base_path, "map_library")
+        if not os.path.isdir(map_lib_path):
+            placeholder = QLabel("<i>No map library. Create a map_library/ folder with subfolders.</i>")
+            placeholder.setStyleSheet("color: #666; padding: 10px;")
+            self.map_lib_grid.addWidget(placeholder, 0, 0)
+            self._map_grid_widgets.append((placeholder, "", "", ""))
+            return
+
+        # Collect all maps from subfolders
+        categories = set()
+        all_maps = []
+        for category in sorted(os.listdir(map_lib_path)):
+            cat_path = os.path.join(map_lib_path, category)
+            if not os.path.isdir(cat_path):
+                continue
+            categories.add(category)
+            for fname in sorted(os.listdir(cat_path)):
+                if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    all_maps.append((category, fname, os.path.join(cat_path, fname)))
+
+        # Populate category filter
+        self.map_category_combo.blockSignals(True)
+        current_cat = self.map_category_combo.currentText()
+        self.map_category_combo.clear()
+        self.map_category_combo.addItem("All")
+        for cat in sorted(categories):
+            self.map_category_combo.addItem(cat)
+        if current_cat and self.map_category_combo.findText(current_cat) >= 0:
+            self.map_category_combo.setCurrentText(current_cat)
+        self.map_category_combo.blockSignals(False)
+
+        if not all_maps:
+            placeholder = QLabel("<i>No maps found. Add JPG/PNG files to map_library/ subfolders.</i>")
+            placeholder.setStyleSheet("color: #666; padding: 10px;")
+            self.map_lib_grid.addWidget(placeholder, 0, 0)
+            self._map_grid_widgets.append((placeholder, "", "", ""))
+            return
+
+        cols = 4
+        for i, (category, fname, full_path) in enumerate(all_maps):
+            wrapper = QWidget()
+            wl = QVBoxLayout(wrapper)
+            wl.setContentsMargins(2, 2, 2, 2)
+            wl.setSpacing(2)
+            wl.setAlignment(Qt.AlignCenter)
+
+            btn = QPushButton()
+            pix = QPixmap(full_path)
+            if not pix.isNull():
+                btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+                btn.setIconSize(QSize(140, 100))
+            btn.setFixedSize(148, 108)
+            btn.setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 4px; } QPushButton:hover { border: 2px solid #2980b9; background: #2c3e50; }")
+            display_name = os.path.splitext(fname)[0]
+            btn.setToolTip(f"[{category}] {display_name}\nClick to use this map")
+            btn.clicked.connect(lambda checked=False, p=full_path, n=fname: self._use_library_map(p, n))
+            wl.addWidget(btn)
+
+            label = QLabel(display_name[:25])
+            label.setAlignment(Qt.AlignCenter)
+            label.setWordWrap(True)
+            label.setFixedWidth(148)
+            label.setStyleSheet("font-size: 9px;")
+            label.setToolTip(f"[{category}] {display_name}")
+            wl.addWidget(label)
+
+            self.map_lib_grid.addWidget(wrapper, i // cols, i % cols)
+            self._map_grid_widgets.append((wrapper, category, display_name.lower(), full_path))
+
+    def _filter_map_grid(self, *args):
+        """Filter map grid by category and search text."""
+        cat = self.map_category_combo.currentText()
+        text = self.map_search.text().lower().strip()
+        for wrapper, category, name, path in self._map_grid_widgets:
+            if not path:  # placeholder
+                wrapper.setVisible(not text and cat == "All")
+                continue
+            cat_match = (cat == "All" or cat == category)
+            text_match = (not text or text in name)
+            wrapper.setVisible(cat_match and text_match)
+
+    def _use_library_map(self, source_path, filename):
+        """Copy a library map to the current encounter folder and select it."""
+        folder_name = self.folder_combo.currentText().strip()
+        if not folder_name or folder_name not in self.scanner.folders:
+            QMessageBox.warning(self, "No Encounter", "Select an encounter folder first.")
+            return
+
+        folder_data = self.scanner.folders[folder_name]
+        dest_path = os.path.join(folder_data.path, filename)
+
+        if os.path.exists(dest_path):
+            # Already exists — just select it
+            idx = self.map_list.findText(filename)
+            if idx >= 0:
+                self.map_list.setCurrentIndex(idx)
+            return
+
+        shutil.copy2(source_path, dest_path)
+        # Rescan and select the new map
+        self.scanner.scan()
+        self.refresh_folders()
+        QTimer.singleShot(200, lambda: self._select_map(filename))
+
+    def _select_map(self, filename):
+        idx = self.map_list.findText(filename)
+        if idx >= 0:
+            self.map_list.setCurrentIndex(idx)
 
     def _connect_token_row(self, row, token):
         """Connect auto-save and remove signals for a TokenConfigRow."""
