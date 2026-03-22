@@ -404,25 +404,34 @@ class MapViewer(QMainWindow):
         )
         self.encounter.add_creature(creature)
 
-        # Create token — colored circle since we have no sprite
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(Qt.transparent)
-        from PySide6.QtGui import QPainter as _P
-        p = _P(pixmap)
-        p.setRenderHint(_P.Antialiasing)
-        color = QColor(summon_color)
-        color.setAlpha(200)
-        p.setBrush(QBrush(color))
-        p.setPen(QPen(QColor(255, 255, 255, 180), 2))
-        p.drawEllipse(4, 4, 56, 56)
-        # Draw first letter
-        font = p.font()
-        font.setPointSize(24)
-        font.setBold(True)
-        p.setFont(font)
-        p.setPen(QColor(255, 255, 255))
-        p.drawText(QRectF(0, 0, 64, 64), Qt.AlignCenter, name[0].upper())
-        p.end()
+        # Look for token image in summon_tokens/ folder
+        import os as _os
+        base = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        safe_name = name.replace(' ', '_').replace('(', '').replace(')', '').replace("'", '')
+        token_path = _os.path.join(base, 'summon_tokens', f'{safe_name}.png')
+
+        if _os.path.isfile(token_path):
+            pixmap = QPixmap(token_path)
+            creature.token_path = token_path
+        else:
+            # Fallback: colored circle with initial
+            pixmap = QPixmap(64, 64)
+            pixmap.fill(Qt.transparent)
+            from PySide6.QtGui import QPainter as _P
+            p = _P(pixmap)
+            p.setRenderHint(_P.Antialiasing)
+            color = QColor(summon_color)
+            color.setAlpha(200)
+            p.setBrush(QBrush(color))
+            p.setPen(QPen(QColor(255, 255, 255, 180), 2))
+            p.drawEllipse(4, 4, 56, 56)
+            font = p.font()
+            font.setPointSize(24)
+            font.setBold(True)
+            p.setFont(font)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(QRectF(0, 0, 64, 64), Qt.AlignCenter, name[0].upper())
+            p.end()
 
         token = TokenItem(pixmap, name, self.view.grid_size, scale,
                           creature=creature, viewer=self)

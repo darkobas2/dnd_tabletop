@@ -4,106 +4,7 @@
             "w": 12,
             "h": 12,
             "scale": 1.0,
-            "scan_data": {
-                "walls": [
-                    {
-                        "start": [
-                            0,
-                            0
-                        ],
-                        "end": [
-                            12,
-                            0
-                        ],
-                        "height": 1.7999999999999998
-                    },
-                    {
-                        "start": [
-                            0,
-                            0
-                        ],
-                        "end": [
-                            0,
-                            12
-                        ],
-                        "height": 1.7999999999999998
-                    },
-                    {
-                        "start": [
-                            12,
-                            0
-                        ],
-                        "end": [
-                            12,
-                            12
-                        ],
-                        "height": 1.7999999999999998
-                    },
-                    {
-                        "start": [
-                            0,
-                            12
-                        ],
-                        "end": [
-                            12,
-                            12
-                        ],
-                        "height": 1.7999999999999998
-                    }
-                ],
-                "structures": [
-                    {
-                        "type": "pillar",
-                        "x": 4.59469696969697,
-                        "z": 4.651041666666667,
-                        "h": 0.864,
-                        "size": 2.000473484848485,
-                        "color": [
-                            70,
-                            65,
-                            60
-                        ]
-                    },
-                    {
-                        "type": "tree",
-                        "x": 6.0,
-                        "z": 6.0,
-                        "h": 1.728,
-                        "size": 2.5,
-                        "color": [
-                            45,
-                            75,
-                            35
-                        ]
-                    }
-                ],
-                "heightmap": [
-                    {
-                        "x": 11,
-                        "z": 9,
-                        "w": 1,
-                        "d": 1,
-                        "h": 0.36,
-                        "color": [
-                            50,
-                            45,
-                            40
-                        ]
-                    },
-                    {
-                        "x": 1,
-                        "z": 11,
-                        "w": 1,
-                        "d": 1,
-                        "h": 0.36,
-                        "color": [
-                            50,
-                            45,
-                            40
-                        ]
-                    }
-                ]
-            }
+            "scan_data": {}
         },
         "Bandit Ambush - Summer - Night - 22x16 - 72 DPI.jpg": {
             "w": 22,
@@ -138,7 +39,92 @@
             "is_player": false
         }
     },
-    "player_sprites": {},
+    "player_sprites": {
+        "Barbarian.png": {
+            "enabled": false,
+            "name": "Barbarian",
+            "hp": 23,
+            "ac": 12,
+            "size": 100
+        },
+        "Bard.png": {
+            "enabled": false,
+            "name": "Bard",
+            "hp": 20,
+            "ac": 12,
+            "size": 100
+        },
+        "Cleric.png": {
+            "enabled": false,
+            "name": "Cleric",
+            "hp": 20,
+            "ac": 12,
+            "size": 100
+        },
+        "Druid.png": {
+            "enabled": true,
+            "name": "Druid",
+            "hp": 20,
+            "ac": 12,
+            "size": 97
+        },
+        "Fighter.png": {
+            "enabled": true,
+            "name": "Fighter",
+            "hp": 24,
+            "ac": 12,
+            "size": 97
+        },
+        "Monk.png": {
+            "enabled": true,
+            "name": "Monk",
+            "hp": 32,
+            "ac": 12,
+            "size": 100
+        },
+        "Paladin.png": {
+            "enabled": false,
+            "name": "Paladin",
+            "hp": 20,
+            "ac": 12,
+            "size": 100
+        },
+        "Ranger.png": {
+            "enabled": false,
+            "name": "Ranger",
+            "hp": 20,
+            "ac": 12,
+            "size": 130
+        },
+        "Rogue.png": {
+            "enabled": false,
+            "name": "Rogue",
+            "hp": 20,
+            "ac": 12,
+            "size": 103
+        },
+        "Sorcerer.png": {
+            "enabled": false,
+            "name": "Sorcerer",
+            "hp": 20,
+            "ac": 12,
+            "size": 97
+        },
+        "Warlock.png": {
+            "enabled": false,
+            "name": "Warlock",
+            "hp": 19,
+            "ac": 5,
+            "size": 100
+        },
+        "Wizard.png": {
+            "enabled": false,
+            "name": "Wizard",
+            "hp": 19,
+            "ac": 12,
+            "size": 88
+        }
+    },
     "creatures": [
         {
             "id": "219789db-4d24-43e0-94fd-3df7bbd28d94",
@@ -309,92 +295,88 @@
             }
         },
         {
-            "id": "11b2ad64-c1db-43e0-83ad-f928306bfffb",
-            "name": "Giant Eagle",
-            "hp": 26,
-            "hp_max": 26,
+            "id": "a7de871a-db0c-481d-9544-5f5584c1f002",
+            "name": "Druid",
+            "hp": 20,
+            "hp_max": 20,
             "hp_temp": 0,
-            "ac": 13,
-            "speed": 80,
+            "ac": 12,
+            "speed": 30,
             "conditions": [],
             "initiative": null,
             "initiative_modifier": 0,
             "is_visible": true,
-            "is_player": false,
-            "size_category": "Large",
+            "is_player": true,
+            "size_category": "Medium",
             "position": [
-                4,
-                4
+                7,
+                2
             ],
-            "token_path": "",
-            "token_scale": 1.4,
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Druid.png",
+            "token_scale": 0.97,
             "notes": "",
             "summoned_by": "",
-            "summon_color": "#cd853f",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
             }
         },
         {
-            "id": "b43bd157-52fd-4c2c-97f0-04af5ec74c28",
-            "name": "Shadow",
-            "hp": 16,
-            "hp_max": 16,
+            "id": "20ecfcf4-648d-4a75-ac81-51d666c68e18",
+            "name": "Fighter",
+            "hp": 24,
+            "hp_max": 24,
             "hp_temp": 0,
             "ac": 12,
-            "speed": 40,
+            "speed": 30,
             "conditions": [],
             "initiative": null,
             "initiative_modifier": 0,
             "is_visible": true,
-            "is_player": false,
+            "is_player": true,
             "size_category": "Medium",
             "position": [
-                6,
-                6
+                7,
+                4
             ],
-            "token_path": "",
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Fighter.png",
             "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
-            "summon_color": "#1a1a2e",
+            "summon_color": "",
             "death_saves": {
                 "successes": 0,
                 "failures": 0
             }
-        }
-    ],
-    "effects": [
-        {
-            "id": "9515cd87-4d46-4ee5-80ef-829f733c51e5",
-            "name": "Antimagic Field",
-            "shape": "circle",
-            "position": [
-                8,
-                5
-            ],
-            "radius": 2,
-            "color": "#808080",
-            "opacity": 0.3,
-            "animation": "pulse",
-            "rotation": 0.0,
-            "visible": true
         },
         {
-            "id": "17d2912e-a8fb-4f8c-a686-13ab52a20d0f",
-            "name": "Bonfire",
-            "shape": "circle",
+            "id": "2d399209-ff7f-48ff-a083-972bdf62a9eb",
+            "name": "Monk",
+            "hp": 32,
+            "hp_max": 32,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
             "position": [
-                9,
+                8,
                 3
             ],
-            "radius": 2,
-            "color": "#ff6600",
-            "opacity": 0.4,
-            "animation": "flicker",
-            "rotation": 0.0,
-            "visible": true
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Monk.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
         }
     ]
 }
