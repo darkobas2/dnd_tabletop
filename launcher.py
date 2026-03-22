@@ -381,7 +381,7 @@ class LauncherWindow(QWidget):
 
         self.sprite_preview = QLabel()
         self.sprite_preview.setFixedSize(82, 82)
-        self.sprite_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px; cursor: pointer;")
+        self.sprite_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
         self.sprite_preview.setToolTip("Click to cycle sprite variants")
         self.sprite_preview.mousePressEvent = self._on_sprite_preview_clicked
         picker_row.addWidget(self.sprite_preview)

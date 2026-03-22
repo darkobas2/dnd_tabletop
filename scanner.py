@@ -110,11 +110,11 @@ class DNDScanner:
                                     with Image.open(file_path) as img:
                                         iw, ih = img.size
                                         if iw >= ih:
-                                            w, h = 30, max(1, int(30 * (ih / iw)))
+                                            w, h = 20, max(1, int(20 * (ih / iw)))
                                         else:
-                                            h, w = 30, max(1, int(30 * (iw / ih)))
+                                            h, w = 20, max(1, int(20 * (iw / ih)))
                                 except:
-                                    w, h = 30, 20
+                                    w, h = 20, 20
                             
                             data.maps.append(MapData(file_path, file_name, w, h))
                         else:

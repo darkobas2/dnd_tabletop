@@ -722,6 +722,7 @@ class _MapGraphicsView(QGraphicsView):
         )
 
         self.map_item = self._scene.addPixmap(self.map_pixmap)
+        self.map_item.setZValue(-10)  # Below everything (effects, tokens, grid)
         self._scene.setSceneRect(QRectF(self.map_pixmap.rect()))
 
         self.width_sq = width_sq

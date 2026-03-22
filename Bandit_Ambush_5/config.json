@@ -1,8 +1,8 @@
 {
     "maps": {
         "Bandit Ambush - Summer - Day - 22x16 - 72 DPI.jpg": {
-            "w": 20,
-            "h": 20,
+            "w": 22,
+            "h": 16,
             "scale": 1.0,
             "scan_data": {}
         },
@@ -31,17 +31,17 @@
             "is_player": false
         },
         "_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png": {
-            "count": 2,
-            "size": 171,
-            "name": "Humanoid",
+            "count": 0,
+            "size": 100,
+            "name": "Tiefling Rogue",
             "hp": 10,
             "ac": 10,
             "is_player": false
         },
-        "Displacer_Beast.png": {
-            "count": 0,
+        "Dire_Wolf.png": {
+            "count": 1,
             "size": 100,
-            "name": "Displacer",
+            "name": "Dire Wolf",
             "hp": 10,
             "ac": 10,
             "is_player": false
@@ -152,15 +152,17 @@
             "hp_temp": 0,
             "ac": 10,
             "speed": 30,
-            "conditions": [],
+            "conditions": [
+                "Frightened"
+            ],
             "initiative": null,
             "initiative_modifier": 0,
             "is_visible": true,
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                3,
-                5
+                5,
+                6
             ],
             "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_halforcfighter1_2026-03-15T12_59_00.900Z.png",
             "token_scale": 1.71,
@@ -203,8 +205,8 @@
             }
         },
         {
-            "id": "d07d609b-43f9-4df0-a337-a84df88433be",
-            "name": "Humanoid 1",
+            "id": "3ecd302a-9ad7-49a8-ada6-a1672a31250e",
+            "name": "Dire Wolf",
             "hp": 10,
             "hp_max": 10,
             "hp_temp": 0,
@@ -217,44 +219,11 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                4,
-                0
-            ],
-            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
-            "token_scale": 1.71,
-            "notes": "",
-            "summoned_by": "",
-            "summon_color": "",
-            "character_sheet": null,
-            "death_saves": {
-                "successes": 0,
-                "failures": 0
-            }
-        },
-        {
-            "id": "26cb5da3-410b-421c-be0b-2a7056921d88",
-            "name": "Humanoid 2",
-            "hp": 10,
-            "hp_max": 10,
-            "hp_temp": 0,
-            "ac": 10,
-            "speed": 30,
-            "conditions": [
-                "Charmed",
-                "Frightened",
-                "Prone"
-            ],
-            "initiative": null,
-            "initiative_modifier": 0,
-            "is_visible": true,
-            "is_player": false,
-            "size_category": "Large",
-            "position": [
-                8,
+                7,
                 5
             ],
-            "token_path": "/home/darkobas/Pictures/DND/Bandit_Ambush_5/_token-editor_token-uploads_humanoid_tieflingrogue4_2026-03-15T12_58_24.940Z.png",
-            "token_scale": 1.71,
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Dire_Wolf.png",
+            "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
@@ -272,18 +241,21 @@
             "hp_temp": 0,
             "ac": 12,
             "speed": 30,
-            "conditions": [],
+            "conditions": [
+                "Charmed",
+                "Invisible"
+            ],
             "initiative": null,
-            "initiative_modifier": 0,
+            "initiative_modifier": 5,
             "is_visible": true,
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                16,
-                0
+                9,
+                4
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dwarf_Barbarian.png",
-            "token_scale": 1.0,
+            "token_scale": 1.5,
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
@@ -308,8 +280,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                17,
-                0
+                11,
+                5
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dwarf_Cleric.png",
             "token_scale": 1.0,
@@ -337,8 +309,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                18,
-                0
+                12,
+                5
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Warlock.png",
             "token_scale": 1.0,
@@ -366,8 +338,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                19,
-                0
+                11,
+                4
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dragonborn_Ranger.png",
             "token_scale": 1.0,
@@ -379,7 +351,81 @@
                 "successes": 0,
                 "failures": 0
             }
+        },
+        {
+            "id": "b3b2640a-a47d-4195-8b27-d9c2bc0496fb",
+            "name": "Celestial Spirit",
+            "hp": 40,
+            "hp_max": 40,
+            "hp_temp": 0,
+            "ac": 16,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Large",
+            "position": [
+                9,
+                7
+            ],
+            "token_path": "",
+            "token_scale": 1.4,
+            "notes": "",
+            "summoned_by": "363756f3-f435-4272-a831-3416f22bf7f0",
+            "summon_color": "#fffacd",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "945deff5-c914-43d1-94a4-ac31932c2213",
+            "name": "Bat (Familiar)",
+            "hp": 1,
+            "hp_max": 1,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Tiny",
+            "position": [
+                7,
+                7
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/summon_tokens/Bat_Familiar.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "#3d3d3d",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
         }
     ],
-    "effects": []
+    "effects": [
+        {
+            "id": "b90ddb35-3c5f-4957-91e7-a572e87bbcb1",
+            "name": "Bless",
+            "shape": "circle",
+            "position": [
+                7,
+                5
+            ],
+            "radius": 1,
+            "color": "#ffd700",
+            "opacity": 0.35,
+            "animation": "pulse",
+            "rotation": 0.0,
+            "visible": true
+        }
+    ]
 }

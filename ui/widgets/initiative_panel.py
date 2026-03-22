@@ -46,10 +46,11 @@ class InitiativePanel(QWidget):
         header.addWidget(self.round_label)
         layout.addLayout(header)
 
-        # Initiative list
+        # Initiative list (double-click to edit initiative value)
         self.init_list = QListWidget()
         self.init_list.setMinimumHeight(100)
         self.init_list.itemClicked.connect(self._on_item_clicked)
+        self.init_list.itemDoubleClicked.connect(self._edit_initiative_value)
         layout.addWidget(self.init_list)
 
         # Control buttons
@@ -147,6 +148,26 @@ class InitiativePanel(QWidget):
         self.end_btn.setEnabled(False)
         self.combat_ended.emit()
         self.refresh()
+
+    def _edit_initiative_value(self, item):
+        """Double-click a creature to manually set its initiative value."""
+        creature_id = item.data(Qt.UserRole)
+        if not creature_id or not self._encounter:
+            return
+        creature = next((c for c in self._encounter.creatures if c.id == creature_id), None)
+        if not creature:
+            return
+        current = int(creature.initiative) if creature.initiative is not None else 10
+        val, ok = QInputDialog.getInt(
+            self, "Set Initiative",
+            f"Initiative for {creature.name}:",
+            value=current, min=1, max=30
+        )
+        if ok:
+            creature.initiative = float(val)
+            if self._initiative_module:
+                self._initiative_module.sort_initiative(self._encounter)
+            self.refresh()
 
     def _on_item_clicked(self, item):
         creature_id = item.data(Qt.UserRole)
