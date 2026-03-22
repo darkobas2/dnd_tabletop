@@ -11,7 +11,7 @@ from PIL import Image
 class MapData:
     path: str
     name: str
-    width_squares: int = 30
+    width_squares: int = 20
     height_squares: int = 20
     scale: float = 1.0
     scan_data: dict = field(default_factory=dict)
@@ -92,7 +92,7 @@ class DNDScanner:
                         data.maps.append(MapData(
                             path=file_path,
                             name=file_name,
-                            width_squares=cfg.get("w", 30),
+                            width_squares=cfg.get("w", 20),
                             height_squares=cfg.get("h", 20),
                             scale=cfg.get("scale", 1.0),
                             scan_data=cfg.get("scan_data", {})

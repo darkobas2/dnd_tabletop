@@ -1,8 +1,8 @@
 {
     "maps": {
         "Bandit Ambush - Summer - Day - 22x16 - 72 DPI.jpg": {
-            "w": 1,
-            "h": 1,
+            "w": 20,
+            "h": 20,
             "scale": 1.0,
             "scan_data": {}
         },
@@ -40,11 +40,291 @@
         }
     },
     "monster_library": {
+        "Bandit.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Bandit",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Basilisk.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Basilisk",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Beholder.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Beholder",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Bugbear.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Bugbear",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Commoner.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Commoner",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Cultist.png": {
+            "count": 0,
+            "size": 97,
+            "name": "Cultist",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Death_Knight.png": {
+            "count": 0,
+            "size": 118,
+            "name": "Death Knight",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dire_Wolf.png": {
+            "count": 0,
+            "size": 88,
+            "name": "Dire Wolf",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Displacer_Beast.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Displacer",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dragon_Black.png": {
+            "count": 0,
+            "size": 106,
+            "name": "Dragon Black",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dragon_Blue.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Dragon Blue",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dragon_Green.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Dragon Green",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dragon_Red.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Dragon Red",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Dragon_White.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Dragon White",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Drow.png": {
+            "count": 0,
+            "size": 97,
+            "name": "Drow",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Fire_Giant.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Fire",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Frost_Giant.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Frost",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Gargoyle.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Gargoyle",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Gelatinous_Cube.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Gelatinous Cube",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Ghost.png": {
+            "count": 0,
+            "size": 97,
+            "name": "Ghost",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Giant_Rat.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Giant Rat",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Gnoll.png": {
+            "count": 0,
+            "size": 79,
+            "name": "Gnoll",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Goblin.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Goblin",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Griffon.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Griffon",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Guard.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Guard",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Harpy.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Harpy",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Hill_Giant.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Hill",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
         "Hobgoblin.png": {
             "count": 1,
             "size": 100,
             "name": "Hobgoblin",
             "hp": 14,
+            "ac": 10,
+            "is_player": false
+        },
+        "Hydra.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Hydra",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Iron_Golem.png": {
+            "count": 0,
+            "size": 148,
+            "name": "Iron Golem",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Kobold.png": {
+            "count": 0,
+            "size": 97,
+            "name": "Kobold",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Lich.png": {
+            "count": 0,
+            "size": 91,
+            "name": "Lich",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Manticore.png": {
+            "count": 0,
+            "size": 88,
+            "name": "Manticore",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Medusa.png": {
+            "count": 0,
+            "size": 106,
+            "name": "Medusa",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Mimic.png": {
+            "count": 0,
+            "size": 109,
+            "name": "Mimic",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Mind_Flayer.png": {
+            "count": 0,
+            "size": 85,
+            "name": "Mind Flayer",
+            "hp": 10,
             "ac": 10,
             "is_player": false
         },
@@ -56,16 +336,88 @@
             "ac": 10,
             "is_player": false
         },
-        "Skeleton.png": {
+        "Orc.png": {
             "count": 1,
             "size": 100,
+            "name": "Orc",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Owlbear.png": {
+            "count": 0,
+            "size": 97,
+            "name": "Owl Bear",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Skeleton.png": {
+            "count": 1,
+            "size": 94,
             "name": "Skeleton",
             "hp": 10,
             "ac": 10,
             "is_player": false
         },
-        "Zombie.png": {
+        "Troll.png": {
             "count": 1,
+            "size": 100,
+            "name": "Troll",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Vampire.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Vampire",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Werewolf.png": {
+            "count": 0,
+            "size": 100,
+            "name": "Werewolf",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Wight.png": {
+            "count": 0,
+            "size": 85,
+            "name": "Wight",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Wraith.png": {
+            "count": 0,
+            "size": 103,
+            "name": "Wraith",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Wyvern.png": {
+            "count": 0,
+            "size": 94,
+            "name": "Wyvern",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Yuan_Ti.png": {
+            "count": 3,
+            "size": 100,
+            "name": "Yuan-Ti",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Zombie.png": {
+            "count": 2,
             "size": 100,
             "name": "Zombie",
             "hp": 10,
@@ -74,108 +426,36 @@
         }
     },
     "player_sprites": {
-        "Barbarian.png": {
-            "enabled": false,
-            "name": "Barbarian",
+        "Dwarf_Barbarian.png": {
+            "enabled": true,
+            "name": "Kaedor Marlin",
             "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 100,
             "familiar": ""
         },
-        "Bard.png": {
-            "enabled": false,
-            "name": "Bard",
+        "Dwarf_Cleric.png": {
+            "enabled": true,
+            "name": "Dwarf Cleric",
             "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 100,
             "familiar": ""
         },
-        "Cleric.png": {
-            "enabled": false,
-            "name": "Cleric",
+        "Elf_Warlock.png": {
+            "enabled": true,
+            "name": "Elf Warlock",
             "level": 1,
             "hp": 20,
             "ac": 12,
             "size": 100,
             "familiar": ""
         },
-        "Druid.png": {
-            "enabled": false,
-            "name": "Druid",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 100,
-            "familiar": ""
-        },
-        "Fighter.png": {
-            "enabled": false,
-            "name": "Fighter",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 97,
-            "familiar": ""
-        },
-        "Monk.png": {
-            "enabled": false,
-            "name": "Monk",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 97,
-            "familiar": ""
-        },
-        "Paladin.png": {
-            "enabled": false,
-            "name": "Paladin",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 100,
-            "familiar": ""
-        },
-        "Ranger.png": {
-            "enabled": false,
-            "name": "Ranger",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 100,
-            "familiar": ""
-        },
-        "Rogue.png": {
-            "enabled": false,
-            "name": "Rogue",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 79,
-            "familiar": "/home/darkobas/Pictures/DND/summon_tokens/Wolf.png"
-        },
-        "Sorcerer.png": {
-            "enabled": false,
-            "name": "Sorcerer",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 100,
-            "familiar": ""
-        },
-        "Warlock.png": {
-            "enabled": false,
-            "name": "Warlock",
-            "level": 1,
-            "hp": 20,
-            "ac": 12,
-            "size": 100,
-            "familiar": ""
-        },
-        "Wizard.png": {
-            "enabled": false,
-            "name": "Wizard",
+        "Dragonborn_Ranger.png": {
+            "enabled": true,
+            "name": "Dragonborn Ranger",
             "level": 1,
             "hp": 20,
             "ac": 12,
@@ -417,6 +697,35 @@
             }
         },
         {
+            "id": "5156a279-fe58-4b08-867b-e128842417a9",
+            "name": "Orc",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                8,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Orc.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
             "id": "97f546a6-0481-4510-ade0-0a562694a583",
             "name": "Skeleton",
             "hp": 10,
@@ -435,6 +744,122 @@
                 1
             ],
             "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Skeleton.png",
+            "token_scale": 0.94,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "7c21de79-5ce7-43af-b6c3-96868140ccb2",
+            "name": "Troll",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                10,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Troll.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "6f762f2c-92b4-4860-aa58-ef76ab5d5d99",
+            "name": "Yuan-Ti 1",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                11,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Yuan_Ti.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "2de21339-4404-4470-9d72-7edd923e3b59",
+            "name": "Yuan-Ti 2",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                12,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Yuan_Ti.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "cac243bf-ad8d-47e1-9814-63bc21752d03",
+            "name": "Yuan-Ti 3",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                13,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Yuan_Ti.png",
             "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
@@ -473,6 +898,152 @@
                 "successes": 0,
                 "failures": 0
             }
+        },
+        {
+            "id": "c8b250fb-51c8-4a3e-b5a8-cbd458d33e84",
+            "name": "Zombie 2",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                15,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Zombie.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "363756f3-f435-4272-a831-3416f22bf7f0",
+            "name": "Kaedor Marlin",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                16,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dwarf_Barbarian.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "bac02756-4e46-4534-a571-96d3f1ca95fa",
+            "name": "Dwarf Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                17,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dwarf_Cleric.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "77faa818-db94-4df6-bbe5-e40129a17b58",
+            "name": "Elf Warlock",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                18,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Warlock.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "7876230a-d492-48db-b4b2-6072141687e6",
+            "name": "Dragonborn Ranger",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                19,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dragonborn_Ranger.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
         }
-    ]
+    ],
+    "effects": []
 }

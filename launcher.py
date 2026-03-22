@@ -4,9 +4,9 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
                              QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
                              QLineEdit, QInputDialog, QMessageBox, QTabWidget)
-from PySide6.QtCore import Qt, QTimer, Signal, Slot
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
 from glob import glob as globfiles
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QIcon
 from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
 
@@ -26,10 +26,10 @@ class TokenConfigRow(QFrame):
         preview = QLabel()
         pix = QPixmap(token_data.path)
         if not pix.isNull():
-            preview.setPixmap(pix.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            preview.setPixmap(pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             preview.setText("?")
-        preview.setFixedSize(42, 42)
+        preview.setFixedSize(66, 66)
         preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
         preview.setToolTip(token_data.name)
         outer.addWidget(preview)
@@ -126,10 +126,10 @@ class PlayerSpriteRow(QFrame):
         self.preview_label = QLabel()
         pix = QPixmap(token_data.path)
         if not pix.isNull():
-            self.preview_label.setPixmap(pix.scaled(44, 44, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.preview_label.setPixmap(pix.scaled(72, 72, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.preview_label.setText("?")
-        self.preview_label.setFixedSize(46, 46)
+        self.preview_label.setFixedSize(74, 74)
         self.preview_label.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
         self.preview_label.setToolTip(token_data.name)
         outer.addWidget(self.preview_label)
@@ -216,22 +216,30 @@ class PlayerSpriteRow(QFrame):
 
 
 def _parse_sprite_races_classes(sprites):
-    """Parse Race_Class.png filenames into a dict of {(race, cls): TokenData}."""
+    """Parse Race_Class.png filenames into a dict of {(race, cls): [TokenData, ...]}.
+
+    Supports variant numbering: Human_Fighter.png, Human_Fighter2.png, Human_Fighter3.png
+    are all grouped under (Human, Fighter).
+    """
+    import re
     combos = {}
     races = set()
     classes = set()
     for sprite in sprites:
-        base = os.path.splitext(sprite.name)[0]  # e.g. "Human_Fighter"
+        base = os.path.splitext(sprite.name)[0]  # e.g. "Human_Fighter2"
         parts = base.rsplit('_', 1)
         if len(parts) == 2:
-            race, cls = parts[0].replace('_', ' '), parts[1]
+            race = parts[0].replace('_', ' ')
+            # Strip trailing digits to get base class name (Fighter2 → Fighter)
+            m = re.match(r'^([A-Za-z]+)\d*$', parts[1])
+            cls = m.group(1) if m else parts[1]
             races.add(race)
             classes.add(cls)
-            combos[(race, cls)] = sprite
+            combos.setdefault((race, cls), []).append(sprite)
         else:
             # Single-word names like "Artificer" — treat as classless
             races.add(base)
-            combos[(base, "")] = sprite
+            combos.setdefault((base, ""), []).append(sprite)
     return combos, sorted(races), sorted(classes)
 
 
@@ -247,7 +255,6 @@ class LauncherWindow(QWidget):
 
         self._updating = False
         self.token_rows = {}
-        self.monster_rows = {}
         self.player_rows = {}
 
         root = QVBoxLayout(self)
@@ -312,14 +319,20 @@ class LauncherWindow(QWidget):
         # --- Tab 2: Monster Library ---
         mon_tab = QWidget()
         mon_layout = QVBoxLayout(mon_tab)
-        mon_layout.addWidget(QLabel("Shared tokens from <b>monster_tokens/</b> folder — set Qty > 0 to add:"))
+        mon_layout.addWidget(QLabel("Click a monster to add it to the <b>Encounter Tokens</b> tab:"))
+        self.monster_search = QLineEdit()
+        self.monster_search.setPlaceholderText("Search monsters...")
+        self.monster_search.textChanged.connect(self._filter_monster_grid)
+        mon_layout.addWidget(self.monster_search)
         self.monster_scroll = QScrollArea()
         self.monster_scroll.setWidgetResizable(True)
         self.monster_container = QWidget()
-        self.monster_layout = QVBoxLayout(self.monster_container)
-        self.monster_layout.setAlignment(Qt.AlignTop)
+        self.monster_grid = QGridLayout(self.monster_container)
+        self.monster_grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.monster_grid.setSpacing(8)
         self.monster_scroll.setWidget(self.monster_container)
         mon_layout.addWidget(self.monster_scroll)
+        self._monster_grid_widgets = []  # [(wrapper_widget, token_data), ...]
         self.tabs.addTab(mon_tab, "Monster Library")
 
         # --- Tab 3: Party / Teams ---
@@ -358,8 +371,10 @@ class LauncherWindow(QWidget):
         picker_row.addWidget(self.class_combo)
 
         self.sprite_preview = QLabel()
-        self.sprite_preview.setFixedSize(50, 50)
-        self.sprite_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        self.sprite_preview.setFixedSize(82, 82)
+        self.sprite_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px; cursor: pointer;")
+        self.sprite_preview.setToolTip("Click to cycle sprite variants")
+        self.sprite_preview.mousePressEvent = self._on_sprite_preview_clicked
         picker_row.addWidget(self.sprite_preview)
 
         self.add_player_btn = QPushButton("+ Add to Party")
@@ -381,7 +396,8 @@ class LauncherWindow(QWidget):
         self.tabs.addTab(party_tab, "Party / Teams")
 
         # Sprite data cache (populated in _rebuild_player_sprites)
-        self._sprite_combos = {}  # (race, cls) -> TokenData
+        self._sprite_combos = {}  # (race, cls) -> [TokenData, ...]
+        self._sprite_variant_idx = {}  # (race, cls) -> int
         self._sprite_races = []
         self._sprite_classes = []
 
@@ -468,8 +484,10 @@ class LauncherWindow(QWidget):
                     saved_tokens = json.load(f).get("tokens", {})
             except: pass
 
-        # 4. Create new rows with saved creature stats
+        # 4. Create new rows with saved creature stats (encounter folder tokens)
+        encounter_token_names = set()
         for t in folder_data.tokens:
+            encounter_token_names.add(t.name)
             cfg = saved_tokens.get(t.name, {"count": 0, "size": 100})
             row = TokenConfigRow(
                 t,
@@ -490,9 +508,32 @@ class LauncherWindow(QWidget):
             self.token_layout.addWidget(row)
             self.token_rows[t] = row
 
+        # 4b. Restore saved library monsters (from monster_tokens/) into encounter tab
+        for token in self.scanner.monster_tokens:
+            if token.name in saved_tokens and token.name not in encounter_token_names:
+                cfg = saved_tokens[token.name]
+                if cfg.get("count", 0) > 0:
+                    row = TokenConfigRow(
+                        token,
+                        initial_count=cfg.get("count", 0),
+                        initial_size=cfg.get("size", 100),
+                        initial_name=cfg.get("name", ""),
+                        initial_hp=cfg.get("hp", 10),
+                        initial_ac=cfg.get("ac", 10),
+                        initial_is_player=cfg.get("is_player", False),
+                    )
+                    row.count_spin.valueChanged.connect(self._auto_save_config)
+                    row.size_slider.valueChanged.connect(self._auto_save_config)
+                    row.name_edit.textChanged.connect(self._auto_save_config)
+                    row.hp_spin.valueChanged.connect(self._auto_save_config)
+                    row.ac_spin.valueChanged.connect(self._auto_save_config)
+                    row.player_check.toggled.connect(self._auto_save_config)
+                    self.token_layout.addWidget(row)
+                    self.token_rows[token] = row
+
         self._updating = False
 
-        # 5. Rebuild monster library and player sprites with per-encounter config
+        # 5. Rebuild monster library grid and player sprites with per-encounter config
         self._rebuild_monster_library()
         self._rebuild_player_sprites()
 
@@ -529,17 +570,76 @@ class LauncherWindow(QWidget):
         except StopIteration: pass
 
     def _rebuild_monster_library(self):
-        """Rebuild the monster library from monster_tokens/ folder."""
-        while self.monster_layout.count():
-            item = self.monster_layout.takeAt(0)
-            w = item.widget() if item else None
-            if w:
-                w.setParent(None)
-                w.deleteLater()
-        self.monster_rows = {}
+        """Rebuild the monster library as a searchable grid of clickable thumbnails."""
+        # Clear existing grid widgets
+        for wrapper, _token in self._monster_grid_widgets:
+            wrapper.setParent(None)
+            wrapper.deleteLater()
+        self._monster_grid_widgets = []
 
-        # Load saved monster config from current encounter folder
-        saved_monsters = {}
+        if not self.scanner.monster_tokens:
+            placeholder = QLabel("<i>No monsters. Add PNGs to monster_tokens/ folder.</i>")
+            placeholder.setStyleSheet("color: #666; padding: 10px;")
+            self.monster_grid.addWidget(placeholder, 0, 0)
+            self._monster_grid_widgets.append((placeholder, None))
+            return
+
+        cols = 6
+        for i, token in enumerate(self.scanner.monster_tokens):
+            wrapper = QWidget()
+            wrapper_layout = QVBoxLayout(wrapper)
+            wrapper_layout.setContentsMargins(2, 2, 2, 2)
+            wrapper_layout.setSpacing(2)
+            wrapper_layout.setAlignment(Qt.AlignCenter)
+
+            btn = QPushButton()
+            pix = QPixmap(token.path)
+            if not pix.isNull():
+                btn.setIcon(QIcon(pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+                btn.setIconSize(QSize(64, 64))
+            btn.setFixedSize(70, 70)
+            btn.setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 4px; } QPushButton:hover { border: 2px solid #2980b9; background: #2c3e50; }")
+            btn.setToolTip(f"Click to add {extract_creature_name(token.name)} to encounter")
+            btn.clicked.connect(lambda checked=False, t=token: self._add_monster_to_encounter(t))
+            wrapper_layout.addWidget(btn)
+
+            name_label = QLabel(extract_creature_name(token.name))
+            name_label.setAlignment(Qt.AlignCenter)
+            name_label.setWordWrap(True)
+            name_label.setFixedWidth(76)
+            name_label.setStyleSheet("font-size: 10px;")
+            wrapper_layout.addWidget(name_label)
+
+            row_idx = i // cols
+            col_idx = i % cols
+            self.monster_grid.addWidget(wrapper, row_idx, col_idx)
+            self._monster_grid_widgets.append((wrapper, token))
+
+    def _filter_monster_grid(self, text):
+        """Show/hide monster grid thumbnails based on search text."""
+        text = text.lower().strip()
+        for wrapper, token in self._monster_grid_widgets:
+            if token is None:
+                # Placeholder label
+                wrapper.setVisible(not text)
+                continue
+            name = extract_creature_name(token.name).lower()
+            wrapper.setVisible(text in name if text else True)
+
+    def _add_monster_to_encounter(self, token):
+        """Add a monster from the library as a TokenConfigRow in the Encounter Tokens tab."""
+        # Check if already added (by path, since token_rows keys are TokenData)
+        for existing_token in self.token_rows:
+            if existing_token.path == token.path:
+                # Already exists — just increment count
+                self.token_rows[existing_token].count_spin.setValue(
+                    self.token_rows[existing_token].count_spin.value() + 1
+                )
+                self.tabs.setCurrentIndex(0)  # Switch to Encounter Tokens tab
+                return
+
+        # Load saved config for this monster if available
+        saved_cfg = {}
         folder_name = self.folder_combo.currentText().strip()
         if folder_name and folder_name in self.scanner.folders:
             folder_data = self.scanner.folders[folder_name]
@@ -547,34 +647,30 @@ class LauncherWindow(QWidget):
             if os.path.exists(config_path):
                 try:
                     with open(config_path, 'r') as f:
-                        saved_monsters = json.load(f).get("monster_library", {})
+                        saved_cfg = json.load(f).get("tokens", {}).get(token.name, {})
                 except:
                     pass
 
-        if not self.scanner.monster_tokens:
-            empty = QLabel("<i>No monsters. Add PNGs to monster_tokens/ folder.</i>")
-            empty.setStyleSheet("color: #666; padding: 10px;")
-            self.monster_layout.addWidget(empty)
-            return
-
-        for token in self.scanner.monster_tokens:
-            cfg = saved_monsters.get(token.name, {"count": 0, "size": 100})
-            row = TokenConfigRow(
-                token,
-                initial_count=cfg.get("count", 0),
-                initial_size=cfg.get("size", 100),
-                initial_name=cfg.get("name", ""),
-                initial_hp=cfg.get("hp", 10),
-                initial_ac=cfg.get("ac", 10),
-                initial_is_player=False,
-            )
-            row.count_spin.valueChanged.connect(self._auto_save_config)
-            row.size_slider.valueChanged.connect(self._auto_save_config)
-            row.name_edit.textChanged.connect(self._auto_save_config)
-            row.hp_spin.valueChanged.connect(self._auto_save_config)
-            row.ac_spin.valueChanged.connect(self._auto_save_config)
-            self.monster_layout.addWidget(row)
-            self.monster_rows[token] = row
+        row = TokenConfigRow(
+            token,
+            initial_count=saved_cfg.get("count", 1),
+            initial_size=saved_cfg.get("size", 100),
+            initial_name=saved_cfg.get("name", ""),
+            initial_hp=saved_cfg.get("hp", 10),
+            initial_ac=saved_cfg.get("ac", 10),
+            initial_is_player=False,
+        )
+        # Connect auto-save signals
+        row.count_spin.valueChanged.connect(self._auto_save_config)
+        row.size_slider.valueChanged.connect(self._auto_save_config)
+        row.name_edit.textChanged.connect(self._auto_save_config)
+        row.hp_spin.valueChanged.connect(self._auto_save_config)
+        row.ac_spin.valueChanged.connect(self._auto_save_config)
+        row.player_check.toggled.connect(self._auto_save_config)
+        self.token_layout.addWidget(row)
+        self.token_rows[token] = row
+        self.tabs.setCurrentIndex(0)  # Switch to Encounter Tokens tab
+        self._auto_save_config()
 
     def _rebuild_player_sprites(self):
         """Rebuild the Race/Class picker and active party from scanner."""
@@ -638,27 +734,45 @@ class LauncherWindow(QWidget):
                     self._add_player_row(sprite, cfg)
 
     def _update_sprite_preview(self):
-        """Update the preview thumbnail based on current Race/Class selection."""
+        """Update the preview thumbnail based on current Race/Class selection and variant index."""
         race = self.race_combo.currentText()
         cls = self.class_combo.currentText()
-        sprite = self._sprite_combos.get((race, cls))
-        if sprite:
+        key = (race, cls)
+        sprite_list = self._sprite_combos.get(key, [])
+        if sprite_list:
+            idx = self._sprite_variant_idx.get(key, 0) % len(sprite_list)
+            sprite = sprite_list[idx]
             pix = QPixmap(sprite.path)
             if not pix.isNull():
-                self.sprite_preview.setPixmap(pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                self.sprite_preview.setToolTip(sprite.name)
+                self.sprite_preview.setPixmap(pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                variant_info = f" (variant {idx + 1}/{len(sprite_list)})" if len(sprite_list) > 1 else ""
+                self.sprite_preview.setToolTip(f"{sprite.name}{variant_info}\nClick to cycle variants")
                 return
         self.sprite_preview.clear()
         self.sprite_preview.setText("?")
         self.sprite_preview.setToolTip("No sprite for this combo")
 
+    def _on_sprite_preview_clicked(self, event):
+        """Cycle to the next sprite variant when the preview is clicked."""
+        race = self.race_combo.currentText()
+        cls = self.class_combo.currentText()
+        key = (race, cls)
+        sprite_list = self._sprite_combos.get(key, [])
+        if len(sprite_list) > 1:
+            current_idx = self._sprite_variant_idx.get(key, 0)
+            self._sprite_variant_idx[key] = (current_idx + 1) % len(sprite_list)
+            self._update_sprite_preview()
+
     def _add_player_from_picker(self):
         """Add the currently selected Race/Class combo to the active party."""
         race = self.race_combo.currentText()
         cls = self.class_combo.currentText()
-        sprite = self._sprite_combos.get((race, cls))
-        if not sprite:
+        key = (race, cls)
+        sprite_list = self._sprite_combos.get(key, [])
+        if not sprite_list:
             return
+        idx = self._sprite_variant_idx.get(key, 0) % len(sprite_list)
+        sprite = sprite_list[idx]
         # Don't add duplicates
         if sprite in self.player_rows:
             return
@@ -838,10 +952,6 @@ class LauncherWindow(QWidget):
             for sprite, row in self.player_rows.items():
                 player_configs[sprite.name] = row.get_config()
 
-            monster_configs = {}
-            for token, row in self.monster_rows.items():
-                monster_configs[token.name] = row.get_config()
-
             full_cfg = {
                 "maps": {
                     m.name: {
@@ -853,7 +963,6 @@ class LauncherWindow(QWidget):
                     for m in folder_data.maps
                 },
                 "tokens": token_configs,
-                "monster_library": monster_configs,
                 "player_sprites": player_configs,
             }
             # Preserve creatures saved by the viewer
@@ -888,18 +997,6 @@ class LauncherWindow(QWidget):
                         "hp": cfg.get("hp", 10),
                         "ac": cfg.get("ac", 10),
                         "is_player": cfg.get("is_player", False),
-                    }
-                    tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
-
-            # Add monsters from library (count > 0)
-            for t, row in self.monster_rows.items():
-                cfg = row.get_config()
-                if cfg["count"] > 0:
-                    creature_cfg = {
-                        "name": cfg.get("name", ""),
-                        "hp": cfg.get("hp", 10),
-                        "ac": cfg.get("ac", 10),
-                        "is_player": False,
                     }
                     tokens_to_add[t] = (cfg["count"], cfg["size"] / 100.0, creature_cfg)
 
