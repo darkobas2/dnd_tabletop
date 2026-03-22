@@ -11,7 +11,9 @@ from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
 
 class TokenConfigRow(QFrame):
-    """Widget for a single token type — preview, count, size, name, HP, AC."""
+    """Widget for a single token type — preview, count, size, name, HP, AC, remove."""
+    removed = Signal()  # emitted when Remove is clicked
+
     def __init__(self, token_data: TokenData, initial_count=0, initial_size=100,
                  initial_name="", initial_hp=10, initial_ac=10, initial_is_player=False):
         super().__init__()
@@ -38,7 +40,7 @@ class TokenConfigRow(QFrame):
         fields = QVBoxLayout()
         fields.setSpacing(2)
 
-        # Row 1: Name + Qty + Size
+        # Row 1: Name + Qty + Remove
         row1 = QHBoxLayout()
         row1.setSpacing(4)
         short_name = extract_creature_name(token_data.name)
@@ -56,6 +58,13 @@ class TokenConfigRow(QFrame):
         self.count_spin.setValue(initial_count)
         self.count_spin.setFixedWidth(50)
         row1.addWidget(self.count_spin)
+
+        self.remove_btn = QPushButton("X")
+        self.remove_btn.setFixedSize(24, 24)
+        self.remove_btn.setToolTip("Remove from encounter")
+        self.remove_btn.setStyleSheet("QPushButton { color: #e74c3c; font-weight: bold; border: 1px solid #555; border-radius: 3px; } QPushButton:hover { background: #c0392b; color: white; }")
+        self.remove_btn.clicked.connect(lambda: self.removed.emit())
+        row1.addWidget(self.remove_btn)
         fields.addLayout(row1)
 
         # Row 2: HP, AC, Size, PC
@@ -499,12 +508,7 @@ class LauncherWindow(QWidget):
                 initial_is_player=cfg.get("is_player", False),
             )
             # Auto-save when any setting changes
-            row.count_spin.valueChanged.connect(self._auto_save_config)
-            row.size_slider.valueChanged.connect(self._auto_save_config)
-            row.name_edit.textChanged.connect(self._auto_save_config)
-            row.hp_spin.valueChanged.connect(self._auto_save_config)
-            row.ac_spin.valueChanged.connect(self._auto_save_config)
-            row.player_check.toggled.connect(self._auto_save_config)
+            self._connect_token_row(row, t)
             self.token_layout.addWidget(row)
             self.token_rows[t] = row
 
@@ -522,12 +526,7 @@ class LauncherWindow(QWidget):
                         initial_ac=cfg.get("ac", 10),
                         initial_is_player=cfg.get("is_player", False),
                     )
-                    row.count_spin.valueChanged.connect(self._auto_save_config)
-                    row.size_slider.valueChanged.connect(self._auto_save_config)
-                    row.name_edit.textChanged.connect(self._auto_save_config)
-                    row.hp_spin.valueChanged.connect(self._auto_save_config)
-                    row.ac_spin.valueChanged.connect(self._auto_save_config)
-                    row.player_check.toggled.connect(self._auto_save_config)
+                    self._connect_token_row(row, token)
                     self.token_layout.addWidget(row)
                     self.token_rows[token] = row
 
@@ -660,17 +659,30 @@ class LauncherWindow(QWidget):
             initial_ac=saved_cfg.get("ac", 10),
             initial_is_player=False,
         )
-        # Connect auto-save signals
+        self._connect_token_row(row, token)
+        self.token_layout.addWidget(row)
+        self.token_rows[token] = row
+        self.tabs.setCurrentIndex(0)  # Switch to Encounter Tokens tab
+        self._auto_save_config()
+
+    def _connect_token_row(self, row, token):
+        """Connect auto-save and remove signals for a TokenConfigRow."""
         row.count_spin.valueChanged.connect(self._auto_save_config)
         row.size_slider.valueChanged.connect(self._auto_save_config)
         row.name_edit.textChanged.connect(self._auto_save_config)
         row.hp_spin.valueChanged.connect(self._auto_save_config)
         row.ac_spin.valueChanged.connect(self._auto_save_config)
         row.player_check.toggled.connect(self._auto_save_config)
-        self.token_layout.addWidget(row)
-        self.token_rows[token] = row
-        self.tabs.setCurrentIndex(0)  # Switch to Encounter Tokens tab
-        self._auto_save_config()
+        row.removed.connect(lambda t=token: self._remove_token_from_encounter(t))
+
+    def _remove_token_from_encounter(self, token):
+        """Remove a token row from the Encounter Tokens tab."""
+        row = self.token_rows.pop(token, None)
+        if row:
+            self.token_layout.removeWidget(row)
+            row.setParent(None)
+            row.deleteLater()
+            self._auto_save_config()
 
     def _rebuild_player_sprites(self):
         """Rebuild the Race/Class picker and active party from scanner."""

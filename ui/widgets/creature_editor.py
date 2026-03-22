@@ -1,14 +1,33 @@
-"""Creature editor widget — edit creature stat blocks and manage tokens."""
+"""Creature editor widget — edit creature stat blocks and pick tokens."""
 
+import os
+from glob import glob as globfiles
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                                 QLabel, QLineEdit, QSpinBox, QComboBox, QFrame,
                                 QFormLayout, QCheckBox, QDialog, QDialogButtonBox,
-                                QTextEdit, QFileDialog)
+                                QTextEdit)
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap, QIcon
+from core.name_utils import extract_creature_name
 
 
-SIZE_CATEGORIES = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
+def _collect_tokens(base_path=None):
+    """Collect all tokens from monster_tokens/ and summon_tokens/ folders.
+    Returns list of (display_name, full_path) sorted by name.
+    """
+    tokens = []
+    if base_path is None:
+        # Try to find the project root by walking up from this file
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    for folder in ("monster_tokens", "summon_tokens", "player_sprites"):
+        folder_path = os.path.join(base_path, folder)
+        if os.path.isdir(folder_path):
+            for png in sorted(globfiles(os.path.join(folder_path, "*.png"))):
+                name = os.path.splitext(os.path.basename(png))[0].replace('_', ' ')
+                prefix = folder.replace('_tokens', '').replace('_sprites', '').capitalize()
+                tokens.append((f"[{prefix}] {name}", png))
+    return tokens
 
 
 class CreatureEditor(QDialog):
@@ -20,7 +39,7 @@ class CreatureEditor(QDialog):
         super().__init__(parent)
         self.creature = creature
         self.setWindowTitle("Edit Creature" if creature else "New Creature")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(450)
         self._setup_ui()
         if creature:
             self._load_creature()
@@ -66,11 +85,6 @@ class CreatureEditor(QDialog):
         self.init_mod_spin.setValue(0)
         form.addRow("Init Mod:", self.init_mod_spin)
 
-        self.size_combo = QComboBox()
-        self.size_combo.addItems(SIZE_CATEGORIES)
-        self.size_combo.setCurrentText("Medium")
-        form.addRow("Size:", self.size_combo)
-
         self.is_player_check = QCheckBox("Player Character")
         form.addRow("", self.is_player_check)
 
@@ -78,14 +92,26 @@ class CreatureEditor(QDialog):
         self.is_visible_check.setChecked(True)
         form.addRow("", self.is_visible_check)
 
-        self.token_path_edit = QLineEdit()
-        self.token_path_edit.setPlaceholderText("Token image path")
+        # Token picker — combo with preview
         token_layout = QHBoxLayout()
-        token_layout.addWidget(self.token_path_edit)
-        browse_btn = QPushButton("Browse")
-        browse_btn.setFixedWidth(60)
-        browse_btn.clicked.connect(self._browse_token)
-        token_layout.addWidget(browse_btn)
+        self.token_preview = QLabel()
+        self.token_preview.setFixedSize(50, 50)
+        self.token_preview.setStyleSheet("border: 1px solid #555; border-radius: 4px;")
+        token_layout.addWidget(self.token_preview)
+
+        self.token_combo = QComboBox()
+        self.token_combo.setMinimumWidth(250)
+        self.token_combo.addItem("(none)", "")
+        self._available_tokens = _collect_tokens()
+        for display_name, path in self._available_tokens:
+            pix = QPixmap(path)
+            if not pix.isNull():
+                icon = QIcon(pix.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self.token_combo.addItem(icon, display_name, path)
+            else:
+                self.token_combo.addItem(display_name, path)
+        self.token_combo.currentIndexChanged.connect(self._on_token_changed)
+        token_layout.addWidget(self.token_combo, 1)
         form.addRow("Token:", token_layout)
 
         self.token_scale_spin = QSpinBox()
@@ -107,10 +133,15 @@ class CreatureEditor(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def _browse_token(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select Token Image", "", "Images (*.png *.jpg *.jpeg)")
+    def _on_token_changed(self, index):
+        """Update preview when token selection changes."""
+        path = self.token_combo.currentData()
         if path:
-            self.token_path_edit.setText(path)
+            pix = QPixmap(path)
+            if not pix.isNull():
+                self.token_preview.setPixmap(pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                return
+        self.token_preview.clear()
 
     def _load_creature(self):
         c = self.creature
@@ -121,10 +152,23 @@ class CreatureEditor(QDialog):
         self.ac_spin.setValue(c.ac)
         self.speed_spin.setValue(c.speed)
         self.init_mod_spin.setValue(c.initiative_modifier)
-        self.size_combo.setCurrentText(c.size_category)
         self.is_player_check.setChecked(c.is_player)
         self.is_visible_check.setChecked(c.is_visible)
-        self.token_path_edit.setText(c.token_path)
+        # Select matching token in combo
+        if c.token_path:
+            idx = self.token_combo.findData(c.token_path)
+            if idx >= 0:
+                self.token_combo.setCurrentIndex(idx)
+            else:
+                # Path not in combo — add it as a custom entry
+                name = os.path.splitext(os.path.basename(c.token_path))[0].replace('_', ' ')
+                pix = QPixmap(c.token_path)
+                if not pix.isNull():
+                    self.token_combo.addItem(QIcon(pix.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)),
+                                             f"[Custom] {name}", c.token_path)
+                else:
+                    self.token_combo.addItem(f"[Custom] {name}", c.token_path)
+                self.token_combo.setCurrentIndex(self.token_combo.count() - 1)
         self.token_scale_spin.setValue(int(c.token_scale * 100))
         self.notes_edit.setPlainText(c.notes)
 
@@ -144,10 +188,9 @@ class CreatureEditor(QDialog):
         self.creature.ac = self.ac_spin.value()
         self.creature.speed = self.speed_spin.value()
         self.creature.initiative_modifier = self.init_mod_spin.value()
-        self.creature.size_category = self.size_combo.currentText()
         self.creature.is_player = self.is_player_check.isChecked()
         self.creature.is_visible = self.is_visible_check.isChecked()
-        self.creature.token_path = self.token_path_edit.text()
+        self.creature.token_path = self.token_combo.currentData() or ""
         self.creature.token_scale = self.token_scale_spin.value() / 100.0
         self.creature.notes = self.notes_edit.toPlainText()
 

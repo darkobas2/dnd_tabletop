@@ -73,7 +73,7 @@ class EffectItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setAcceptHoverEvents(True)
-        self.setZValue(5)
+        self.setZValue(-1)  # Render below tokens so they remain selectable
 
         # Position on grid
         gx, gy = effect.position
@@ -216,11 +216,8 @@ class EffectItem(QGraphicsItem):
             sr = self._shape_rect()
             painter.drawRect(sr)
 
-        # Name label above — always upright even when item rotates
+        # Name label above — in local coords so Z-order works correctly
         painter.save()
-        painter.resetTransform()  # undo any swirl rotation for text
-        # Map item origin to scene, then to painter coords
-        scene_pos = self.scenePos()
         sr = self._shape_rect()
         font = painter.font()
         font_size = min(12, max(8, int(gs * 0.15)))
@@ -231,9 +228,8 @@ class EffectItem(QGraphicsItem):
         text = self.effect.name
         tw = fm.horizontalAdvance(text) + 12
         th = fm.height() + 4
-        tx = scene_pos.x() - tw / 2
-        ext = max(abs(sr.top()), abs(sr.bottom()), abs(sr.left()), abs(sr.right()))
-        ty = scene_pos.y() - ext - th - 4
+        tx = -tw / 2
+        ty = sr.top() - th - 4
         # Dark background pill
         painter.setBrush(QBrush(QColor(0, 0, 0, 160)))
         painter.setPen(Qt.NoPen)

@@ -16,6 +16,7 @@ class TokenItem(QGraphicsPixmapItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setAcceptHoverEvents(True)
+        self.setZValue(5)  # Above effects so tokens are always selectable
         self.grid_size = grid_size
         self.name = name
         self.creature = creature  # Optional CreatureState reference
@@ -61,7 +62,7 @@ class TokenItem(QGraphicsPixmapItem):
 
         # Name label
         self._name_label = QGraphicsTextItem(self.creature.name, self)
-        font = QFont("Segoe UI", max(6, int(pw * 0.08)))
+        font = QFont("Segoe UI", max(8, int(pw * 0.10)))
         font.setBold(True)
         self._name_label.setFont(font)
         self._name_label.setDefaultTextColor(QColor(255, 255, 255))
@@ -112,14 +113,14 @@ class TokenItem(QGraphicsPixmapItem):
         ph = self.pixmap().height()
         bar_height = max(4, pw * 0.06)
         y_start = ph + bar_height + 6
-        icon_size = max(8, int(pw * 0.12))
+        icon_size = max(12, int(pw * 0.17))
 
         for i, cond in enumerate(self.creature.conditions[:6]):
             icon_text = CONDITION_ICONS.get(cond, "?")
             color = CONDITION_COLORS.get(cond, "#aaa")
 
             text_item = QGraphicsTextItem(icon_text, self)
-            font = QFont("Segoe UI", max(6, icon_size))
+            font = QFont("Segoe UI", max(8, icon_size))
             text_item.setFont(font)
             text_item.setDefaultTextColor(QColor(color))
             text_item.setPos(i * (icon_size + 2), y_start)
@@ -147,6 +148,28 @@ class TokenItem(QGraphicsPixmapItem):
         # Update name if changed
         if self._name_label:
             self._name_label.setPlainText(self.creature.name)
+
+        # Force repaint to update condition overlay
+        self.update()
+
+    def paint(self, painter, option, widget=None):
+        """Draw the token pixmap, then overlay a condition tint if applicable."""
+        super().paint(painter, option, widget)
+
+        if self.creature and self.creature.conditions:
+            try:
+                from core.conditions import CONDITION_COLORS
+                first_cond = self.creature.conditions[0]
+                color_hex = CONDITION_COLORS.get(first_cond, "#aaaaaa")
+                overlay_color = QColor(color_hex)
+                overlay_color.setAlpha(60)
+                painter.setBrush(QBrush(overlay_color))
+                painter.setPen(QPen(Qt.NoPen))
+                pw = self.pixmap().width()
+                ph = self.pixmap().height()
+                painter.drawEllipse(0, 0, pw, ph)
+            except ImportError:
+                pass
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange and self.scene():

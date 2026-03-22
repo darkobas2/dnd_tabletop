@@ -622,6 +622,12 @@ class MapViewer(QMainWindow):
             if dialog.exec():
                 for token in self.view.token_items:
                     if token.creature and token.creature.id == creature.id:
+                        # Recompute visual scale from creature's token_scale
+                        base_size = token.grid_size * 0.8
+                        pw = token.pixmap().width()
+                        ph = token.pixmap().height()
+                        initial_scale = base_size / max(pw, ph)
+                        token.setScale(initial_scale * creature.token_scale)
                         token.update_visuals()
                 if self.initiative_panel:
                     self.initiative_panel.refresh()
