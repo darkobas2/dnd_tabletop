@@ -225,22 +225,45 @@ class PlayerSpriteRow(QFrame):
         }
 
 
+# Display names for compound race tokens
+_RACE_DISPLAY = {
+    "HalfElf": "Half-Elf",
+    "HalfOrc": "Half-Orc",
+}
+# Reverse lookup: display name -> internal key
+_RACE_INTERNAL = {v: k for k, v in _RACE_DISPLAY.items()}
+
+# Known D&D classes for identifying single-word sprites like "Artificer.png"
+_KNOWN_CLASSES = {
+    "Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk",
+    "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard", "Artificer",
+}
+
+
+def _race_display_name(raw):
+    """Convert internal race key to display name (e.g. HalfElf -> Half-Elf)."""
+    return _RACE_DISPLAY.get(raw, raw)
+
+
 def _parse_sprite_races_classes(sprites):
     """Parse Race_Class.png filenames into a dict of {(race, cls): [TokenData, ...]}.
 
     Supports variant numbering: Human_Fighter.png, Human_Fighter2.png, Human_Fighter3.png
     are all grouped under (Human, Fighter).
-    Skips files whose names don't match a clean Race_Class pattern (e.g. token-editor exports).
+    Single-word class names like Artificer.png are added as a class available for all races.
+    Race display names are cleaned up (HalfElf -> Half-Elf, HalfOrc -> Half-Orc).
     """
     import re
     combos = {}
     races = set()
     classes = set()
-    # Valid race/class part: only letters (optionally followed by digits for variants)
+    standalone_classes = []  # single-word sprites that are class names
     valid_part = re.compile(r'^([A-Za-z]+)\d*$')
+
     for sprite in sprites:
         base = os.path.splitext(sprite.name)[0]  # e.g. "Human_Fighter2"
         parts = base.split('_')
+
         if len(parts) == 2:
             race_m = valid_part.match(parts[0])
             cls_m = valid_part.match(parts[1])
@@ -251,14 +274,20 @@ def _parse_sprite_races_classes(sprites):
                 classes.add(cls)
                 combos.setdefault((race, cls), []).append(sprite)
                 continue
+
         if len(parts) == 1 and valid_part.match(parts[0]):
-            # Single-word names like "Artificer" — treat as classless
             name = valid_part.match(parts[0]).group(1)
-            races.add(name)
-            combos.setdefault((name, ""), []).append(sprite)
+            if name in _KNOWN_CLASSES:
+                # Single-word class (e.g. Artificer.png) — add for all races later
+                classes.add(name)
+                standalone_classes.append((name, sprite))
+            else:
+                # Single-word race with no class
+                races.add(name)
+                combos.setdefault((name, ""), []).append(sprite)
             continue
-        # Multi-part names like "HalfElf_Fighter" or compound races
-        # Try first N-1 parts as race, last part as class
+
+        # Multi-part race name (e.g. Half_Elf_Fighter if someone names it that way)
         if len(parts) >= 2:
             cls_m = valid_part.match(parts[-1])
             if cls_m and all(valid_part.match(p) for p in parts[:-1]):
@@ -268,8 +297,19 @@ def _parse_sprite_races_classes(sprites):
                 classes.add(cls)
                 combos.setdefault((race, cls), []).append(sprite)
                 continue
-        # Doesn't match any known pattern — skip it
-    return combos, sorted(races), sorted(classes)
+
+    # Add standalone class sprites (like Artificer) to every race that exists
+    for cls_name, sprite in standalone_classes:
+        for race in races:
+            combos.setdefault((race, cls_name), []).append(sprite)
+
+    # Convert race names to display format
+    display_races = sorted(_race_display_name(r) for r in races)
+    display_combos = {}
+    for (race, cls), sprite_list in combos.items():
+        display_combos[(_race_display_name(race), cls)] = sprite_list
+
+    return display_combos, display_races, sorted(classes)
 
 
 class LauncherWindow(QWidget):

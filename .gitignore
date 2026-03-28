@@ -3,8 +3,5 @@ __pycache__/
 *.pyo
 .claude/
 _config/
-player_sprites/
-summon_tokens/
-monster_tokens/
 _dnd3d_*
 .playwright-mcp/
