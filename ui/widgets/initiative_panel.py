@@ -99,8 +99,7 @@ class InitiativePanel(QWidget):
                 val, ok = QInputDialog.getInt(
                     self, "Player Initiative",
                     f"Initiative roll for {creature.name}:",
-                    value=10 + creature.initiative_modifier,
-                    min=1, max=30
+                    10 + creature.initiative_modifier, 1, 30
                 )
                 if ok:
                     creature.initiative = float(val)
@@ -161,7 +160,7 @@ class InitiativePanel(QWidget):
         val, ok = QInputDialog.getInt(
             self, "Set Initiative",
             f"Initiative for {creature.name}:",
-            value=current, min=1, max=30
+            current, 1, 30
         )
         if ok:
             creature.initiative = float(val)

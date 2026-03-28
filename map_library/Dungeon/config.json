@@ -1,0 +1,266 @@
+{
+    "creatures": [
+        {
+            "id": "7c05eeed-61a2-4fc7-b512-bf3d8a1ab7fb",
+            "name": "Beholder",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": 16.0,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                0,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Beholder.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "28650fec-79a9-4066-9b2e-92fd4b7893bf",
+            "name": "Giant Rat",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": 5.0,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                1,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Giant_Rat.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "c572414f-0087-4c50-beaa-d15df84503c2",
+            "name": "Mind Flayer",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": 20.0,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                2,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Mind_Flayer.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "6025f0bb-2303-4e5d-aa28-69a7f773b4ad",
+            "name": "Cultist",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": 3.0,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                3,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Cultist.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "dcbcccca-de88-4237-82fb-30a4b03617d5",
+            "name": "Artificer",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                4,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Artificer.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "9c397ef3-f82b-45d7-b70d-0a0443c51b2b",
+            "name": "Aasimar Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                5,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Aasimar_Cleric.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "059624b6-2ec8-435b-91ce-3c21edd26c79",
+            "name": "Elf Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                6,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Cleric.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "bd8ab9f4-ae98-4e09-8855-c386621a5311",
+            "name": "Elf Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                7,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Cleric2.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
+            "id": "e2e5bd14-38fd-49da-8226-859b5029500c",
+            "name": "Elf Cleric",
+            "hp": 20,
+            "hp_max": 20,
+            "hp_temp": 0,
+            "ac": 12,
+            "speed": 30,
+            "conditions": [],
+            "initiative": null,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": true,
+            "size_category": "Medium",
+            "position": [
+                8,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Cleric3.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        }
+    ],
+    "effects": []
+}

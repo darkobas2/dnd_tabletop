@@ -585,30 +585,18 @@ class LauncherWindow(QWidget):
                     saved_tokens = json.load(f).get("tokens", {})
             except: pass
 
-        # 4. Create new rows with saved creature stats (encounter folder tokens)
-        encounter_token_names = set()
-        for t in folder_data.tokens:
-            encounter_token_names.add(t.name)
-            cfg = saved_tokens.get(t.name, {"count": 0, "size": 100})
-            row = TokenConfigRow(
-                t,
-                initial_count=cfg.get("count", 0),
-                initial_size=cfg.get("size", 100),
-                initial_name=cfg.get("name", ""),
-                initial_hp=cfg.get("hp", 10),
-                initial_ac=cfg.get("ac", 10),
-                initial_is_player=cfg.get("is_player", False),
-            )
-            # Auto-save when any setting changes
-            self._connect_token_row(row, t)
-            self.token_layout.addWidget(row)
-            self.token_rows[t] = row
+        # 4. Restore tokens with count > 0 (from encounter folder or monster library)
+        encounter_token_names = set(t.name for t in folder_data.tokens)
+        # Combine encounter folder tokens + monster library tokens as lookup
+        all_tokens = {t.name: t for t in folder_data.tokens}
+        for t in self.scanner.monster_tokens:
+            if t.name not in all_tokens:
+                all_tokens[t.name] = t
 
-        # 4b. Restore saved library monsters (from monster_tokens/) into encounter tab
-        for token in self.scanner.monster_tokens:
-            if token.name in saved_tokens and token.name not in encounter_token_names:
-                cfg = saved_tokens[token.name]
-                if cfg.get("count", 0) > 0:
+        for token_name, cfg in saved_tokens.items():
+            if cfg.get("count", 0) > 0:
+                token = all_tokens.get(token_name)
+                if token:
                     row = TokenConfigRow(
                         token,
                         initial_count=cfg.get("count", 0),
@@ -865,7 +853,7 @@ class LauncherWindow(QWidget):
 
         shutil.copy2(source_path, dest_path)
         # Rescan and select the new map
-        self.scanner.scan()
+        self.scanner.scan_all()
         self.refresh_folders()
         QTimer.singleShot(200, lambda: self._select_map(filename))
 

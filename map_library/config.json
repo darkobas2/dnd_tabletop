@@ -1,0 +1,337 @@
+{
+    "maps": {
+        "Witchs Herbgarden - 32x22.jpg": {
+            "w": 20,
+            "h": 20,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Meadow Picnic - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Endless River - 44x16.jpg": {
+            "w": 44,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Mushroom Village Interiors.jpg": {
+            "w": 20,
+            "h": 20,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Mushroom Village - 43x29.jpg": {
+            "w": 43,
+            "h": 29,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Prehistoric Creek - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Ant Colony - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Living Depths Pt.1 - 61x36.jpg": {
+            "w": 61,
+            "h": 36,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Underground Outpost - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Dwarven Burrow - 14x14.jpg": {
+            "w": 14,
+            "h": 14,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Mecha Ruins - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Bone Pit of Xibalba - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Power Core - 32x44.jpg": {
+            "w": 32,
+            "h": 44,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Sanctum of Xibalba - 46x34.jpg": {
+            "w": 46,
+            "h": 34,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Ruins of Xibalba - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Clockwork Construction - 26x16.jpg": {
+            "w": 26,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Trading Post - 14x14.jpg": {
+            "w": 14,
+            "h": 14,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Dwarven Ranch - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Metalsmiths Workshop - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Royal Bathhouse - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Victorian Ballroom.jpg": {
+            "w": 20,
+            "h": 13,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Festive Lodge - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Deluxe Suites - 13x17.jpg": {
+            "w": 13,
+            "h": 17,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Swamp Trail - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Shattered Bridge - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Rickety Rope Bridge - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Island Prison - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Corroded Hull - 44x16.jpg": {
+            "w": 44,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Palatial Portal - 25x18.jpg": {
+            "w": 25,
+            "h": 18,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Driftwood Cove - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Egyptian Entryway - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Desert Racetrack - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Shattered Rift - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Shattered Stronghold - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Hidden Pool - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Isometric Jail - 33x25.jpg": {
+            "w": 33,
+            "h": 25,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Owls Library - 22x32.jpg": {
+            "w": 22,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Moonlit Cathedral - 26x52.jpg": {
+            "w": 26,
+            "h": 52,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Cosmic Lab - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Frozen Lake - 16x22.jpg": {
+            "w": 16,
+            "h": 22,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Bandit Ambush - 22x16.jpg": {
+            "w": 22,
+            "h": 16,
+            "scale": 1.0,
+            "scan_data": {}
+        },
+        "Royal Bank - 32x23.jpg": {
+            "w": 32,
+            "h": 23,
+            "scale": 1.0,
+            "scan_data": {}
+        }
+    },
+    "tokens": {
+        "Beholder.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Beholder",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Giant_Rat.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Giant Rat",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Mind_Flayer.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Mind Flayer",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        },
+        "Cultist.png": {
+            "count": 1,
+            "size": 100,
+            "name": "Cultist",
+            "hp": 10,
+            "ac": 10,
+            "is_player": false
+        }
+    },
+    "player_sprites": {
+        "Artificer.png": {
+            "enabled": true,
+            "name": "Artificer",
+            "level": 1,
+            "hp": 20,
+            "ac": 12,
+            "size": 100,
+            "familiar": ""
+        },
+        "Aasimar_Cleric.png": {
+            "enabled": true,
+            "name": "Aasimar Cleric",
+            "level": 1,
+            "hp": 20,
+            "ac": 12,
+            "size": 100,
+            "familiar": ""
+        },
+        "Elf_Cleric.png": {
+            "enabled": true,
+            "name": "Elf Cleric",
+            "level": 1,
+            "hp": 20,
+            "ac": 12,
+            "size": 100,
+            "familiar": ""
+        },
+        "Elf_Cleric2.png": {
+            "enabled": true,
+            "name": "Elf Cleric",
+            "level": 1,
+            "hp": 20,
+            "ac": 12,
+            "size": 100,
+            "familiar": ""
+        },
+        "Elf_Cleric3.png": {
+            "enabled": true,
+            "name": "Elf Cleric",
+            "level": 1,
+            "hp": 20,
+            "ac": 12,
+            "size": 100,
+            "familiar": ""
+        }
+    }
+}
