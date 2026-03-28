@@ -1,24 +1,24 @@
 {
     "creatures": [
         {
-            "id": "7705b834-f9e5-4131-be6f-9fcb04d76f8c",
-            "name": "Mind Flayer",
+            "id": "6ef3e28b-7269-4f16-9834-e059baf8ddf7",
+            "name": "Beholder",
             "hp": 10,
             "hp_max": 10,
             "hp_temp": 0,
             "ac": 10,
             "speed": 30,
             "conditions": [],
-            "initiative": 5.0,
+            "initiative": 17.0,
             "initiative_modifier": 0,
             "is_visible": true,
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                2,
-                0
+                6,
+                5
             ],
-            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Mind_Flayer.png",
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Beholder.png",
             "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
@@ -59,6 +59,35 @@
             }
         },
         {
+            "id": "7705b834-f9e5-4131-be6f-9fcb04d76f8c",
+            "name": "Mind Flayer",
+            "hp": 10,
+            "hp_max": 10,
+            "hp_temp": 0,
+            "ac": 10,
+            "speed": 30,
+            "conditions": [],
+            "initiative": 5.0,
+            "initiative_modifier": 0,
+            "is_visible": true,
+            "is_player": false,
+            "size_category": "Medium",
+            "position": [
+                2,
+                0
+            ],
+            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Mind_Flayer.png",
+            "token_scale": 1.0,
+            "notes": "",
+            "summoned_by": "",
+            "summon_color": "",
+            "character_sheet": null,
+            "death_saves": {
+                "successes": 0,
+                "failures": 0
+            }
+        },
+        {
             "id": "9e2262c2-20f1-4ea3-a557-3b37af1c24cd",
             "name": "Cultist",
             "hp": 10,
@@ -77,35 +106,6 @@
                 0
             ],
             "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Cultist.png",
-            "token_scale": 1.0,
-            "notes": "",
-            "summoned_by": "",
-            "summon_color": "",
-            "character_sheet": null,
-            "death_saves": {
-                "successes": 0,
-                "failures": 0
-            }
-        },
-        {
-            "id": "6ef3e28b-7269-4f16-9834-e059baf8ddf7",
-            "name": "Beholder",
-            "hp": 10,
-            "hp_max": 10,
-            "hp_temp": 0,
-            "ac": 10,
-            "speed": 30,
-            "conditions": [],
-            "initiative": 17.0,
-            "initiative_modifier": 0,
-            "is_visible": true,
-            "is_player": false,
-            "size_category": "Medium",
-            "position": [
-                0,
-                0
-            ],
-            "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Beholder.png",
             "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
@@ -160,8 +160,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                5,
-                0
+                7,
+                8
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Aasimar_Cleric.png",
             "token_scale": 1.0,
@@ -189,8 +189,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                6,
-                0
+                9,
+                5
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Cleric.png",
             "token_scale": 1.0,

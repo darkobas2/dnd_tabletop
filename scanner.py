@@ -11,8 +11,8 @@ from PIL import Image
 class MapData:
     path: str
     name: str
-    width_squares: int = 20
-    height_squares: int = 20
+    width_squares: int = 1
+    height_squares: int = 1
     scale: float = 1.0
     scan_data: dict = field(default_factory=dict)
 
@@ -92,8 +92,8 @@ class DNDScanner:
                         data.maps.append(MapData(
                             path=file_path,
                             name=file_name,
-                            width_squares=cfg.get("w", 20),
-                            height_squares=cfg.get("h", 20),
+                            width_squares=cfg.get("w", 1),
+                            height_squares=cfg.get("h", 1),
                             scale=cfg.get("scale", 1.0),
                             scan_data=cfg.get("scan_data", {})
                         ))
@@ -110,11 +110,11 @@ class DNDScanner:
                                     with Image.open(file_path) as img:
                                         iw, ih = img.size
                                         if iw >= ih:
-                                            w, h = 20, max(1, int(20 * (ih / iw)))
+                                            w, h = 1, 1
                                         else:
-                                            h, w = 20, max(1, int(20 * (iw / ih)))
+                                            h, w = 1, 1
                                 except:
-                                    w, h = 20, 20
+                                    w, h = 1, 1
                             
                             data.maps.append(MapData(file_path, file_name, w, h))
                         else:
