@@ -230,26 +230,45 @@ def _parse_sprite_races_classes(sprites):
 
     Supports variant numbering: Human_Fighter.png, Human_Fighter2.png, Human_Fighter3.png
     are all grouped under (Human, Fighter).
+    Skips files whose names don't match a clean Race_Class pattern (e.g. token-editor exports).
     """
     import re
     combos = {}
     races = set()
     classes = set()
+    # Valid race/class part: only letters (optionally followed by digits for variants)
+    valid_part = re.compile(r'^([A-Za-z]+)\d*$')
     for sprite in sprites:
         base = os.path.splitext(sprite.name)[0]  # e.g. "Human_Fighter2"
-        parts = base.rsplit('_', 1)
+        parts = base.split('_')
         if len(parts) == 2:
-            race = parts[0].replace('_', ' ')
-            # Strip trailing digits to get base class name (Fighter2 → Fighter)
-            m = re.match(r'^([A-Za-z]+)\d*$', parts[1])
-            cls = m.group(1) if m else parts[1]
-            races.add(race)
-            classes.add(cls)
-            combos.setdefault((race, cls), []).append(sprite)
-        else:
+            race_m = valid_part.match(parts[0])
+            cls_m = valid_part.match(parts[1])
+            if race_m and cls_m:
+                race = race_m.group(1)
+                cls = cls_m.group(1)
+                races.add(race)
+                classes.add(cls)
+                combos.setdefault((race, cls), []).append(sprite)
+                continue
+        if len(parts) == 1 and valid_part.match(parts[0]):
             # Single-word names like "Artificer" — treat as classless
-            races.add(base)
-            combos.setdefault((base, ""), []).append(sprite)
+            name = valid_part.match(parts[0]).group(1)
+            races.add(name)
+            combos.setdefault((name, ""), []).append(sprite)
+            continue
+        # Multi-part names like "HalfElf_Fighter" or compound races
+        # Try first N-1 parts as race, last part as class
+        if len(parts) >= 2:
+            cls_m = valid_part.match(parts[-1])
+            if cls_m and all(valid_part.match(p) for p in parts[:-1]):
+                race = ''.join(valid_part.match(p).group(1) for p in parts[:-1])
+                cls = cls_m.group(1)
+                races.add(race)
+                classes.add(cls)
+                combos.setdefault((race, cls), []).append(sprite)
+                continue
+        # Doesn't match any known pattern — skip it
     return combos, sorted(races), sorted(classes)
 
 
@@ -403,7 +422,7 @@ class LauncherWindow(QWidget):
         picker_row.addWidget(QLabel("<b>Race:</b>"))
         self.race_combo = QComboBox()
         self.race_combo.setMinimumWidth(120)
-        self.race_combo.currentIndexChanged.connect(self._update_sprite_preview)
+        self.race_combo.currentIndexChanged.connect(self._on_race_changed)
         picker_row.addWidget(self.race_combo)
         picker_row.addWidget(QLabel("<b>Class:</b>"))
         self.class_combo = QComboBox()
@@ -861,17 +880,13 @@ class LauncherWindow(QWidget):
         else:
             self._sprite_combos, self._sprite_races, self._sprite_classes = {}, [], []
 
-        # Populate race/class combo boxes
+        # Populate race combo, then class combo filtered by race
         self.race_combo.blockSignals(True)
-        self.class_combo.blockSignals(True)
         self.race_combo.clear()
-        self.class_combo.clear()
         for r in self._sprite_races:
             self.race_combo.addItem(r)
-        for c in self._sprite_classes:
-            self.class_combo.addItem(c)
         self.race_combo.blockSignals(False)
-        self.class_combo.blockSignals(False)
+        self._update_class_combo()
         self._update_sprite_preview()
 
         # Load saved player config and add enabled players to the party
@@ -894,6 +909,27 @@ class LauncherWindow(QWidget):
                 sprite = next((s for s in self.scanner.player_sprites if s.name == sprite_name), None)
                 if sprite:
                     self._add_player_row(sprite, cfg)
+
+    def _on_race_changed(self):
+        """When race changes, update class list and preview."""
+        self._update_class_combo()
+        self._update_sprite_preview()
+
+    def _update_class_combo(self):
+        """Rebuild class combo to only show classes available for the selected race."""
+        race = self.race_combo.currentText()
+        available_classes = sorted(
+            cls for (r, cls) in self._sprite_combos if r == race and cls
+        )
+        prev_cls = self.class_combo.currentText()
+        self.class_combo.blockSignals(True)
+        self.class_combo.clear()
+        for c in available_classes:
+            self.class_combo.addItem(c)
+        # Restore previous selection if still available
+        if prev_cls and self.class_combo.findText(prev_cls) >= 0:
+            self.class_combo.setCurrentText(prev_cls)
+        self.class_combo.blockSignals(False)
 
     def _update_sprite_preview(self):
         """Update the preview thumbnail based on current Race/Class selection and variant index."""

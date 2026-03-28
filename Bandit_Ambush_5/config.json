@@ -1,8 +1,8 @@
 {
     "maps": {
         "Bandit Ambush - Summer - Day - 22x16 - 72 DPI.jpg": {
-            "w": 22,
-            "h": 16,
+            "w": 20,
+            "h": 20,
             "scale": 1.0,
             "scan_data": {}
         },
@@ -55,7 +55,7 @@
             "hp": 20,
             "ac": 12,
             "size": 100,
-            "familiar": ""
+            "familiar": "/home/darkobas/Pictures/DND/summon_tokens/Pony.png"
         },
         "Dwarf_Cleric.png": {
             "enabled": true,
@@ -255,7 +255,7 @@
                 4
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Dwarf_Barbarian.png",
-            "token_scale": 1.5,
+            "token_scale": 1.0,
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
@@ -353,57 +353,28 @@
             }
         },
         {
-            "id": "b3b2640a-a47d-4195-8b27-d9c2bc0496fb",
-            "name": "Celestial Spirit",
-            "hp": 40,
-            "hp_max": 40,
-            "hp_temp": 0,
-            "ac": 16,
-            "speed": 30,
-            "conditions": [],
-            "initiative": null,
-            "initiative_modifier": 0,
-            "is_visible": true,
-            "is_player": false,
-            "size_category": "Large",
-            "position": [
-                9,
-                7
-            ],
-            "token_path": "",
-            "token_scale": 1.4,
-            "notes": "",
-            "summoned_by": "363756f3-f435-4272-a831-3416f22bf7f0",
-            "summon_color": "#fffacd",
-            "character_sheet": null,
-            "death_saves": {
-                "successes": 0,
-                "failures": 0
-            }
-        },
-        {
-            "id": "945deff5-c914-43d1-94a4-ac31932c2213",
-            "name": "Bat (Familiar)",
+            "id": "967e07c1-255d-4b16-8ad5-a9bc6130ab68",
+            "name": "Pony (Kaedor Marlin)",
             "hp": 1,
             "hp_max": 1,
             "hp_temp": 0,
-            "ac": 12,
+            "ac": 11,
             "speed": 30,
             "conditions": [],
             "initiative": null,
             "initiative_modifier": 0,
             "is_visible": true,
             "is_player": false,
-            "size_category": "Tiny",
+            "size_category": "Medium",
             "position": [
-                7,
-                7
+                9,
+                6
             ],
-            "token_path": "/home/darkobas/Pictures/DND/summon_tokens/Bat_Familiar.png",
-            "token_scale": 1.0,
+            "token_path": "/home/darkobas/Pictures/DND/summon_tokens/Pony.png",
+            "token_scale": 0.5,
             "notes": "",
-            "summoned_by": "",
-            "summon_color": "#3d3d3d",
+            "summoned_by": "363756f3-f435-4272-a831-3416f22bf7f0",
+            "summon_color": "#d2b48c",
             "character_sheet": null,
             "death_saves": {
                 "successes": 0,
@@ -411,21 +382,5 @@
             }
         }
     ],
-    "effects": [
-        {
-            "id": "b90ddb35-3c5f-4957-91e7-a572e87bbcb1",
-            "name": "Bless",
-            "shape": "circle",
-            "position": [
-                7,
-                5
-            ],
-            "radius": 1,
-            "color": "#ffd700",
-            "opacity": 0.35,
-            "animation": "pulse",
-            "rotation": 0.0,
-            "visible": true
-        }
-    ]
+    "effects": []
 }
