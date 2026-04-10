@@ -116,11 +116,71 @@ PLAYER_HTML = r"""<!DOCTYPE html>
     padding: 4px 10px; border-radius: 6px;
     pointer-events: none;
   }
+  #initiative-panel {
+    position: fixed; top: 36px; right: 8px; z-index: 10;
+    font: 13px/1.4 system-ui, sans-serif;
+    color: #e0e0e0; background: rgba(26,26,46,0.9);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 6px 0; min-width: 160px;
+    max-height: 60vh; overflow-y: auto;
+    display: none;
+  }
+  #initiative-panel .init-title {
+    font-weight: 700; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #fbbf24; padding: 2px 10px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 2px;
+  }
+  #initiative-panel .init-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 10px; transition: background 0.15s;
+  }
+  #initiative-panel .init-row.active {
+    background: rgba(251,191,36,0.18);
+  }
+  #initiative-panel .init-row.dead {
+    opacity: 0.4; text-decoration: line-through;
+  }
+  .init-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .init-dot.player { background: #4ade80; }
+  .init-dot.monster { background: #f87171; }
+  .init-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .init-roll { color: #888; font-size: 11px; min-width: 18px; text-align: right; }
+  .init-hp { font-size: 11px; color: #4ade80; min-width: 40px; text-align: right; }
+  #settings-btn {
+    position: fixed; bottom: 8px; left: 8px; z-index: 10;
+    font: 600 18px system-ui; color: rgba(255,255,255,0.5);
+    background: rgba(26,26,46,0.7); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; width: 32px; height: 32px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.2s, background 0.2s;
+  }
+  #settings-btn:hover { color: #fff; background: rgba(26,26,46,0.95); }
+  #settings-popup {
+    position: fixed; bottom: 46px; left: 8px; z-index: 11;
+    background: rgba(26,26,46,0.95); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; padding: 10px 14px; display: none;
+    font: 13px/1.6 system-ui, sans-serif; color: #e0e0e0;
+  }
+  #settings-popup label {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    user-select: none;
+  }
+  #settings-popup input[type="checkbox"] {
+    accent-color: #fbbf24; width: 16px; height: 16px;
+  }
 </style>
 </head>
 <body>
 <div id="status" class="disconnected">Connecting...</div>
 <div id="round-info"></div>
+<div id="initiative-panel"></div>
+<button id="settings-btn" title="Settings">&#9881;</button>
+<div id="settings-popup">
+  <label><input type="checkbox" id="toggle-names" checked> Show names</label>
+  <label><input type="checkbox" id="toggle-initiative" checked> Show initiative</label>
+</div>
 <div style="position:fixed;bottom:4px;right:8px;font:10px/1.2 system-ui;color:rgba(255,255,255,0.3);pointer-events:none;">Token art &copy; 2minutetabletop.com</div>
 <canvas id="board"></canvas>
 
@@ -139,6 +199,26 @@ const canvas = document.getElementById("board");
 const ctx = canvas.getContext("2d");
 const statusEl = document.getElementById("status");
 const roundEl = document.getElementById("round-info");
+const initPanel = document.getElementById("initiative-panel");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsPopup = document.getElementById("settings-popup");
+const toggleNames = document.getElementById("toggle-names");
+const toggleInitiative = document.getElementById("toggle-initiative");
+
+let showNames = true;
+let showInitiative = true;
+
+settingsBtn.addEventListener("click", function(e) {
+  e.stopPropagation();
+  settingsPopup.style.display = settingsPopup.style.display === "block" ? "none" : "block";
+});
+document.addEventListener("click", function() { settingsPopup.style.display = "none"; });
+settingsPopup.addEventListener("click", function(e) { e.stopPropagation(); });
+toggleNames.addEventListener("change", function() { showNames = this.checked; render(); });
+toggleInitiative.addEventListener("change", function() {
+  showInitiative = this.checked;
+  updateInitiativePanel();
+});
 
 // ---- Canvas sizing ----
 function resize() {
@@ -354,6 +434,38 @@ function ensureTokenImage(creature) {
   return img.complete ? img : null;
 }
 
+// ---- Initiative Panel ----
+function updateInitiativePanel() {
+  var order = state && state.initiative_order ? state.initiative_order : [];
+  if (!state || !state.combat_started || order.length === 0 || !showInitiative) {
+    initPanel.style.display = "none";
+    return;
+  }
+  initPanel.style.display = "block";
+  var html = '<div class="init-title">Initiative &mdash; Round ' + (state.round_number || 1) + '</div>';
+  for (var i = 0; i < order.length; i++) {
+    var c = order[i];
+    var isActive = state.active_creature_id && c.id === state.active_creature_id;
+    var isDead = c.conditions && (c.conditions.indexOf("Dead") >= 0);
+    var cls = "init-row" + (isActive ? " active" : "") + (isDead ? " dead" : "");
+    html += '<div class="' + cls + '">';
+    html += '<span class="init-dot ' + (c.is_player ? "player" : "monster") + '"></span>';
+    html += '<span class="init-name">' + c.name + '</span>';
+    if (c.initiative != null) {
+      html += '<span class="init-roll">' + c.initiative + '</span>';
+    }
+    if (c.is_player && c.hp != null && c.hp_max != null) {
+      var hpColor = "#4ade80";
+      var frac = c.hp / c.hp_max;
+      if (frac < 0.25) hpColor = "#f87171";
+      else if (frac < 0.5) hpColor = "#fbbf24";
+      html += '<span class="init-hp" style="color:' + hpColor + '">' + c.hp + '/' + c.hp_max + '</span>';
+    }
+    html += '</div>';
+  }
+  initPanel.innerHTML = html;
+}
+
 // ---- Rendering ----
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -541,49 +653,19 @@ function render() {
       ctx.globalAlpha = 1;
     }
 
-    // Draw token image or colored circle
+    // Draw token image (no circular clip/border) or fallback letter
     var tImg = ensureTokenImage(c);
-    var borderColor = c.is_player ? "#4ade80" : (isSummon ? summonColor : "#f87171");
-    if (isActive) borderColor = "#fbbf24";
 
     if (tImg) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
       ctx.drawImage(tImg, cx - radius, cy - radius, radius * 2, radius * 2);
-      ctx.restore();
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.lineWidth = isActive ? 3.5 : 2.5;
-      ctx.strokeStyle = borderColor;
-      ctx.stroke();
     } else {
-      // No image — draw colored circle with initial
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      if (isSummon) {
-        ctx.fillStyle = summonColor;
-        ctx.globalAlpha = 0.5;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      } else {
-        ctx.fillStyle = c.is_player ? "rgba(74,222,128,0.45)" : "rgba(248,113,113,0.45)";
-        ctx.fill();
-      }
-      ctx.lineWidth = isActive ? 3.5 : 2.5;
-      ctx.strokeStyle = borderColor;
-      ctx.stroke();
-      // Draw first letter for summons without images
-      if (isSummon || !c.token_url) {
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold " + Math.max(12, radius * 0.9) + "px system-ui";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(c.name.charAt(0).toUpperCase(), cx, cy);
-        ctx.textBaseline = "alphabetic";
-      }
+      // No image — draw first letter as fallback
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.max(12, radius * 0.9) + "px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(c.name.charAt(0).toUpperCase(), cx, cy);
+      ctx.textBaseline = "alphabetic";
     }
 
     ctx.restore();
@@ -599,15 +681,17 @@ function render() {
     }
 
     // Name label
-    ctx.save();
-    var fontSize = Math.max(11, cellW * 0.22);
-    ctx.font = "600 " + fontSize + "px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff";
-    ctx.shadowColor = "rgba(0,0,0,0.7)";
-    ctx.shadowBlur = 3;
-    ctx.fillText(c.name, cx, cy - radius - 6);
-    ctx.restore();
+    if (showNames) {
+      ctx.save();
+      var fontSize = Math.max(11, cellW * 0.22);
+      ctx.font = "600 " + fontSize + "px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fff";
+      ctx.shadowColor = "rgba(0,0,0,0.7)";
+      ctx.shadowBlur = 3;
+      ctx.fillText(c.name, cx, cy - radius - 6);
+      ctx.restore();
+    }
 
     // HP bar (only for player creatures — monsters never show HP to players)
     if (c.is_player && typeof c.hp === "number" && typeof c.hp_max === "number" && c.hp_max > 0) {
@@ -676,6 +760,7 @@ function connectWS() {
         var needsMapReload = !state || msg.map_changed;
         state = msg;
         if (needsMapReload) { loadMap(); }
+        updateInitiativePanel();
         render();
       } else if (msg.type === "map_changed") {
         loadMap();
@@ -866,19 +951,20 @@ class PlayerViewServer:
         """Set current game state. Thread-safe — called from the main/Qt thread."""
         with self._lock:
             self._encounter = encounter
-            self._map_path = map_path
+            # Only re-probe image dimensions when the map path actually changes
+            if map_path != self._map_path:
+                self._map_path = map_path
+                self._map_image_width = 0
+                self._map_image_height = 0
+                if map_path and os.path.isfile(map_path):
+                    try:
+                        from PIL import Image
+                        with Image.open(map_path) as img:
+                            self._map_image_width, self._map_image_height = img.size
+                    except Exception:
+                        pass
             self._map_width = width_sq
             self._map_height = height_sq
-            # Probe actual pixel dimensions for the canvas
-            self._map_image_width = 0
-            self._map_image_height = 0
-            if map_path and os.path.isfile(map_path):
-                try:
-                    from PIL import Image
-                    with Image.open(map_path) as img:
-                        self._map_image_width, self._map_image_height = img.size
-                except Exception:
-                    pass
 
     def start(self) -> None:
         """Start HTTP + WebSocket servers in a background daemon thread."""
@@ -902,11 +988,12 @@ class PlayerViewServer:
             except Exception:
                 pass
 
-        # Shut down asyncio event loop — the _ws_main coroutine checks
-        # self._running and will clean up the socket before exiting.
-        # We just need to wait for the thread to finish.
+        # The _ws_main coroutine checks self._running and will exit within
+        # its 0.2s poll interval. Keep the join short so we don't freeze
+        # the Qt event loop — the thread is a daemon, so leftovers die
+        # when the process exits anyway.
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=10)
+            self._thread.join(timeout=2)
         self._thread = None
         self._loop = None
 
@@ -956,6 +1043,7 @@ class PlayerViewServer:
             "map_height_px": img_h,
             "creatures": [],
             "effects": [],
+            "initiative_order": [],
             "combat_started": False,
             "round_number": 0,
             "active_creature_id": None,
@@ -1010,6 +1098,21 @@ class PlayerViewServer:
                 }
 
             result["creatures"].append(c_data)
+
+        # Include initiative order (visible creatures only)
+        if enc.combat_started:
+            for creature in enc.get_initiative_order():
+                if not creature.is_visible:
+                    continue
+                result["initiative_order"].append({
+                    "id": creature.id,
+                    "name": creature.name,
+                    "is_player": creature.is_player,
+                    "initiative": creature.initiative,
+                    "hp": creature.hp if creature.is_player else None,
+                    "hp_max": creature.hp_max if creature.is_player else None,
+                    "conditions": list(creature.conditions),
+                })
 
         # Include visible effects
         for effect in enc.effects:
@@ -1289,13 +1392,9 @@ class PlayerViewServer:
 
         # Run until stopped
         while self._running:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.2)
 
-        # Cleanup
-        ws_server.close()
-        await ws_server.wait_closed()
-
-        # Close all remaining client connections
+        # Close all remaining client connections FIRST so wait_closed doesn't hang
         if self._ws_clients:
             await asyncio.gather(
                 *[
@@ -1305,6 +1404,13 @@ class PlayerViewServer:
                 return_exceptions=True,
             )
             self._ws_clients.clear()
+
+        # Now shut down the server socket
+        ws_server.close()
+        try:
+            await asyncio.wait_for(ws_server.wait_closed(), timeout=2.0)
+        except asyncio.TimeoutError:
+            pass
 
     async def _async_broadcast(self) -> None:
         """Send player state to all connected WebSocket clients."""

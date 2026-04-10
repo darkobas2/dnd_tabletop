@@ -25,8 +25,13 @@ class DNDApp:
     def run(self):
         self.launcher.show()
         code = self.app.exec()
-        self.observer.stop()
-        self.observer.join()
+        # Stop file watcher — keep join short so a stuck watchdog thread
+        # can't block shutdown (it's daemonized via the observer anyway).
+        try:
+            self.observer.stop()
+            self.observer.join(timeout=2)
+        except Exception:
+            pass
         sys.exit(code)
 
     def _load_encounter(self, folder_path):

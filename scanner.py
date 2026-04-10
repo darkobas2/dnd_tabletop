@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from PIL import Image
 
 @dataclass
 class MapData:
@@ -55,7 +54,7 @@ class DNDScanner:
         for folder_name in os.listdir(self.base_path):
             folder_path = os.path.join(self.base_path, folder_name)
             if os.path.isdir(folder_path):
-                if folder_name in SKIP_FOLDERS or folder_name.startswith('.'):
+                if folder_name in SKIP_FOLDERS or folder_name.startswith('.') or folder_name.startswith('_'):
                     continue
                 new_folders[folder_name] = self.scan_folder(folder_path)
         
@@ -101,21 +100,15 @@ class DNDScanner:
                         # Try to detect if it's a map or token
                         match = re.search(r'(\d+)\s*x\s*(\d+)', file_name)
                         is_map = match or any(x in lower_name for x in ["map", "ambush", "treetops", "floor", "room"])
-                        
+
                         if is_map:
                             if match:
                                 w, h = int(match.group(1)), int(match.group(2))
                             else:
-                                try:
-                                    with Image.open(file_path) as img:
-                                        iw, ih = img.size
-                                        if iw >= ih:
-                                            w, h = 1, 1
-                                        else:
-                                            h, w = 1, 1
-                                except:
-                                    w, h = 1, 1
-                            
+                                # Defer PIL open — use 1x1 placeholder; actual
+                                # dimensions are only needed at view time.
+                                w, h = 20, 20
+
                             data.maps.append(MapData(file_path, file_name, w, h))
                         else:
                             if not file_name.startswith('.'):
