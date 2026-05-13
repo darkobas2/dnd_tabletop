@@ -46,6 +46,35 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# In-memory file bytes cache (keyed by path + mtime + size)
+# ---------------------------------------------------------------------------
+
+_file_cache_lock = threading.Lock()
+_file_cache: Dict[str, tuple] = {}  # path -> (mtime, size, bytes)
+
+
+def _read_cached(path: str) -> Optional[bytes]:
+    """Read a file, caching its bytes in memory until mtime/size changes."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (st.st_mtime, st.st_size)
+    with _file_cache_lock:
+        cached = _file_cache.get(path)
+        if cached and cached[0] == key[0] and cached[1] == key[1]:
+            return cached[2]
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    with _file_cache_lock:
+        _file_cache[path] = (key[0], key[1], data)
+    return data
+
+
+# ---------------------------------------------------------------------------
 # LAN IP detection
 # ---------------------------------------------------------------------------
 
@@ -854,18 +883,17 @@ class _PlayerHTTPHandler(BaseHTTPRequestHandler):
         if not mime:
             mime = "image/jpeg"
 
-        try:
-            with open(map_path, "rb") as f:
-                data = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", mime)
-            self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
-            self.wfile.write(data)
-        except Exception as e:
-            logger.warning("Failed to serve map: %s", e)
+        data = _read_cached(map_path)
+        if data is None:
+            logger.warning("Failed to serve map: %s", map_path)
             self.send_error(500, "Map read error")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _serve_token(self, path: str):
         """Serve a token image by creature id: /token/<creature_id>"""
@@ -889,18 +917,17 @@ class _PlayerHTTPHandler(BaseHTTPRequestHandler):
         if not mime:
             mime = "image/png"
 
-        try:
-            with open(creature.token_path, "rb") as f:
-                data = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", mime)
-            self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "public, max-age=300")
-            self.end_headers()
-            self.wfile.write(data)
-        except Exception as e:
-            logger.warning("Failed to serve token image: %s", e)
+        data = _read_cached(creature.token_path)
+        if data is None:
+            logger.warning("Failed to serve token image: %s", creature.token_path)
             self.send_error(500, "Token read error")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.end_headers()
+        self.wfile.write(data)
 
 
 # ---------------------------------------------------------------------------
@@ -1311,26 +1338,24 @@ class PlayerViewServer:
                 mime, _ = mimetypes.guess_type(map_path)
                 if not mime:
                     mime = "image/jpeg"
-                try:
-                    with open(map_path, "rb") as f:
-                        data = f.read()
-                    return websockets.http11.Response(
-                        200,
-                        "OK",
-                        websockets.datastructures.Headers({
-                            "Content-Type": mime,
-                            "Content-Length": str(len(data)),
-                            "Cache-Control": "no-cache",
-                        }),
-                        data,
-                    )
-                except Exception:
+                data = _read_cached(map_path)
+                if data is None:
                     return websockets.http11.Response(
                         500,
                         "Error",
                         websockets.datastructures.Headers({}),
                         b"Map read error",
                     )
+                return websockets.http11.Response(
+                    200,
+                    "OK",
+                    websockets.datastructures.Headers({
+                        "Content-Type": mime,
+                        "Content-Length": str(len(data)),
+                        "Cache-Control": "no-cache",
+                    }),
+                    data,
+                )
 
             if path.startswith("/token/"):
                 creature_id = path.split("/token/", 1)[-1]
@@ -1341,9 +1366,8 @@ class PlayerViewServer:
                             mime, _ = mimetypes.guess_type(c.token_path)
                             if not mime:
                                 mime = "image/png"
-                            try:
-                                with open(c.token_path, "rb") as f:
-                                    data = f.read()
+                            data = _read_cached(c.token_path)
+                            if data is not None:
                                 return websockets.http11.Response(
                                     200,
                                     "OK",
@@ -1354,8 +1378,6 @@ class PlayerViewServer:
                                     }),
                                     data,
                                 )
-                            except Exception:
-                                pass
                 return websockets.http11.Response(
                     404,
                     "Not Found",

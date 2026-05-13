@@ -10,6 +10,7 @@ from glob import glob as globfiles
 from PySide6.QtGui import QPixmap, QIcon
 from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
+from viewer.pixmap_cache import get_pixmap
 
 class TokenConfigRow(QFrame):
     """Widget for a single token type — preview, count, size, name, HP, AC, remove."""
@@ -27,7 +28,7 @@ class TokenConfigRow(QFrame):
 
         # Token preview
         preview = QLabel()
-        pix = QPixmap(token_data.path)
+        pix = get_pixmap(token_data.path)
         if not pix.isNull():
             preview.setPixmap(pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -134,7 +135,7 @@ class PlayerSpriteRow(QFrame):
 
         # Sprite preview thumbnail
         self.preview_label = QLabel()
-        pix = QPixmap(token_data.path)
+        pix = get_pixmap(token_data.path)
         if not pix.isNull():
             self.preview_label.setPixmap(pix.scaled(72, 72, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -672,7 +673,7 @@ class LauncherWindow(QWidget):
             wrapper_layout.setAlignment(Qt.AlignCenter)
 
             btn = QPushButton()
-            pix = QPixmap(token.path)
+            pix = get_pixmap(token.path)
             if not pix.isNull():
                 btn.setIcon(QIcon(pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
                 btn.setIconSize(QSize(64, 64))
@@ -800,7 +801,7 @@ class LauncherWindow(QWidget):
             wl.setAlignment(Qt.AlignCenter)
 
             btn = QPushButton()
-            pix = QPixmap(full_path)
+            pix = get_pixmap(full_path)
             if not pix.isNull():
                 btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
                 btn.setIconSize(QSize(140, 100))
@@ -968,7 +969,7 @@ class LauncherWindow(QWidget):
         if sprite_list:
             idx = self._sprite_variant_idx.get(key, 0) % len(sprite_list)
             sprite = sprite_list[idx]
-            pix = QPixmap(sprite.path)
+            pix = get_pixmap(sprite.path)
             if not pix.isNull():
                 self.sprite_preview.setPixmap(pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 variant_info = f" (variant {idx + 1}/{len(sprite_list)})" if len(sprite_list) > 1 else ""

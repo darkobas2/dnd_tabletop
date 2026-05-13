@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 
 from viewer.token_item import TokenItem
 from viewer.effect_item import EffectItem, PlaceEffectDialog
+from viewer.pixmap_cache import get_pixmap
 
 
 class MapViewer(QMainWindow):
@@ -236,7 +237,7 @@ class MapViewer(QMainWindow):
                 layout.addWidget(url_label)
 
                 qr_label = QLabel()
-                qr_pixmap = QPixmap(qr_path)
+                qr_pixmap = get_pixmap(qr_path)
                 qr_label.setPixmap(qr_pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 qr_label.setAlignment(Qt.AlignCenter)
                 layout.addWidget(qr_label)
@@ -436,7 +437,7 @@ class MapViewer(QMainWindow):
         token_path = _os.path.join(base, 'summon_tokens', f'{safe_name}.png')
 
         if _os.path.isfile(token_path):
-            pixmap = QPixmap(token_path)
+            pixmap = get_pixmap(token_path)
             creature.token_path = token_path
         else:
             # Fallback: colored circle with initial
@@ -495,7 +496,7 @@ class MapViewer(QMainWindow):
                 self.encounter.add_creature(creature)
                 # Add token to map
                 if creature.token_path:
-                    pixmap = QPixmap(creature.token_path)
+                    pixmap = get_pixmap(creature.token_path)
                 else:
                     pixmap = QPixmap(64, 64)
                     pixmap.fill(QColor("#e94560"))
@@ -714,12 +715,15 @@ class _MapGraphicsView(QGraphicsView):
         self.encounter = encounter
         self.token_items = []
 
-        self.base_pixmap = QPixmap(map_path)
-        self.map_pixmap = self.base_pixmap.scaled(
-            int(self.base_pixmap.width() * map_scale),
-            int(self.base_pixmap.height() * map_scale),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation
-        )
+        self.base_pixmap = get_pixmap(map_path)
+        if map_scale == 1.0:
+            self.map_pixmap = self.base_pixmap
+        else:
+            self.map_pixmap = self.base_pixmap.scaled(
+                int(self.base_pixmap.width() * map_scale),
+                int(self.base_pixmap.height() * map_scale),
+                Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
 
         self.map_item = self._scene.addPixmap(self.map_pixmap)
         self.map_item.setZValue(-10)  # Below everything (effects, tokens, grid)
@@ -742,6 +746,11 @@ class _MapGraphicsView(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
 
+        # Track whether the user has manually zoomed/panned. While False, window
+        # resize keeps fitting the map; after the first wheel/drag we leave the
+        # user's view alone.
+        self._user_zoomed = False
+
         QTimer.singleShot(200, self.fit_to_screen)
 
     def _add_tokens(self, tokens_to_add):
@@ -759,7 +768,7 @@ class _MapGraphicsView(QGraphicsView):
                 count, token_scale = token_cfg[0], token_cfg[1]
                 creature_cfg = {}
 
-            pixmap = QPixmap(token_data.path)
+            pixmap = get_pixmap(token_data.path)
             saved_list = saved_by_path.get(token_data.path, [])
 
             for i in range(count):
@@ -825,7 +834,8 @@ class _MapGraphicsView(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.fit_to_screen()
+        if not self._user_zoomed:
+            self.fit_to_screen()
 
     def _draw_grid(self):
         pen = QPen(QColor(255, 255, 255, 50))
@@ -868,15 +878,32 @@ class _MapGraphicsView(QGraphicsView):
                     window.showNormal()
                 else:
                     window.showFullScreen()
+        elif event.key() in (Qt.Key_0, Qt.Key_Home):
+            # Reset zoom: refit the map to the view.
+            self._user_zoomed = False
+            self.fit_to_screen()
+        elif event.key() in (Qt.Key_Plus, Qt.Key_Equal):
+            self._user_zoomed = True
+            self.scale(1.25, 1.25)
+        elif event.key() == Qt.Key_Minus:
+            self._user_zoomed = True
+            self.scale(1 / 1.25, 1 / 1.25)
         super().keyPressEvent(event)
 
     def wheelEvent(self, event):
         zoom_in_factor = 1.25
         zoom_out_factor = 1 / zoom_in_factor
+        self._user_zoomed = True
         if event.angleDelta().y() > 0:
             self.scale(zoom_in_factor, zoom_in_factor)
         else:
             self.scale(zoom_out_factor, zoom_out_factor)
+
+    def mousePressEvent(self, event):
+        # Any drag-pan with the empty-space hand counts as user-controlled view.
+        if event.button() == Qt.LeftButton and not self.itemAt(event.pos()):
+            self._user_zoomed = True
+        super().mousePressEvent(event)
 
     def contextMenuEvent(self, event):
         """Right-click on empty map space."""
@@ -933,7 +960,7 @@ class _MapGraphicsView(QGraphicsView):
 
                 scene_pos = self.mapToScene(view_pos)
                 if creature.token_path:
-                    pixmap = QPixmap(creature.token_path)
+                    pixmap = get_pixmap(creature.token_path)
                 else:
                     pixmap = QPixmap(64, 64)
                     pixmap.fill(QColor("#e94560"))

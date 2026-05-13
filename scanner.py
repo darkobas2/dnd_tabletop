@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import threading
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from watchdog.observers import Observer
@@ -138,16 +139,40 @@ class DNDScanner:
             json.dump(config_data, f, indent=4)
 
 class DNDWatchHandler(FileSystemEventHandler):
+    """Debounces filesystem events: a flurry of changes triggers a single rescan
+    after the last event settles. Prevents N rescans when configs and N images
+    are written together (e.g. during config save)."""
+
+    DEBOUNCE_SEC = 0.5
+
     def __init__(self, scanner: DNDScanner):
         self.scanner = scanner
+        self._timer: Optional[threading.Timer] = None
+        self._lock = threading.Lock()
+
+    def _schedule_scan(self):
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+            self._timer = threading.Timer(self.DEBOUNCE_SEC, self._fire)
+            self._timer.daemon = True
+            self._timer.start()
+
+    def _fire(self):
+        with self._lock:
+            self._timer = None
+        try:
+            self.scanner.scan_all()
+        except Exception:
+            pass
 
     def on_any_event(self, event):
         path = event.src_path.lower()
         if event.is_directory:
-            self.scanner.scan_all()
+            self._schedule_scan()
         elif path.endswith(('.jpg', '.jpeg', '.png', '.json')):
             if '__pycache__' not in path and not os.path.basename(path).startswith('.'):
-                self.scanner.scan_all()
+                self._schedule_scan()
 
 def start_watching(base_path: str, scanner: DNDScanner):
     observer = Observer()
