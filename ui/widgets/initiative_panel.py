@@ -202,8 +202,11 @@ class InitiativePanel(QWidget):
             is_active = (self._encounter.combat_started and
                         i == self._encounter.active_creature_index)
             if is_active:
-                item.setBackground(QColor("#e94560"))
-                item.setForeground(QColor("#ffffff"))
+                item.setBackground(QColor(74, 222, 128, 45))
+                item.setForeground(QColor("#4ade80"))
+                f = item.font()
+                f.setBold(True)
+                item.setFont(f)
             elif "Dead" in creature.conditions:
                 item.setForeground(QColor("#666666"))
             elif "Unconscious" in creature.conditions:

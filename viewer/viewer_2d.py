@@ -542,6 +542,7 @@ class MapViewer(QMainWindow):
                 self.initiative_panel.set_encounter(self.encounter)
             self.initiative_panel.turn_advanced.connect(self._on_turn_advanced)
             self.initiative_panel.combat_started.connect(self._on_combat_started)
+            self.initiative_panel.combat_ended.connect(self._highlight_active_token)
             self.initiative_panel.creature_selected.connect(self._on_creature_selected)
             right_layout.addWidget(self.initiative_panel)
 
@@ -605,15 +606,15 @@ class MapViewer(QMainWindow):
                 break
 
     def _highlight_active_token(self):
-        if not self.encounter or not self.encounter.combat_started:
+        if not self.encounter:
             return
+        in_combat = self.encounter.combat_started
         active = self.encounter.creatures[self.encounter.active_creature_index] \
-            if 0 <= self.encounter.active_creature_index < len(self.encounter.creatures) else None
+            if in_combat and 0 <= self.encounter.active_creature_index < len(self.encounter.creatures) else None
         for token in self.view.token_items:
-            if token.creature and active and token.creature.id == active.id:
-                token.setSelected(True)
-            else:
-                token.setSelected(False)
+            is_active = bool(token.creature and active and token.creature.id == active.id)
+            if hasattr(token, "set_active_turn"):
+                token.set_active_turn(is_active)
 
     def edit_creature(self, creature):
         """Open creature editor dialog."""

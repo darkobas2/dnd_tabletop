@@ -164,7 +164,10 @@ PLAYER_HTML = r"""<!DOCTYPE html>
     padding: 3px 10px; transition: background 0.15s;
   }
   #initiative-panel .init-row.active {
-    background: rgba(251,191,36,0.18);
+    background: rgba(74,222,128,0.18);
+  }
+  #initiative-panel .init-row.active .init-name {
+    color: #4ade80; font-weight: 700;
   }
   #initiative-panel .init-row.dead {
     opacity: 0.4; text-decoration: line-through;
@@ -664,11 +667,23 @@ function render() {
 
     // Glow for active creature or summon aura
     if (isActive) {
-      ctx.shadowColor = "#fbbf24";
-      ctx.shadowBlur = 18;
+      ctx.shadowColor = "#4ade80";
+      ctx.shadowBlur = 22;
     } else if (isSummon) {
       ctx.shadowColor = summonColor;
       ctx.shadowBlur = 12;
+    }
+
+    // Pulsing green ring around the active creature on the map
+    if (isActive) {
+      var pulse = 0.6 + 0.4 * Math.sin(animTime * 4);
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#4ade80";
+      ctx.globalAlpha = pulse;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Summon outer glow ring
@@ -702,7 +717,7 @@ function render() {
     // Conditions badge
     if (c.conditions && c.conditions.length > 0) {
       ctx.save();
-      ctx.font = "bold " + Math.max(10, cellW * 0.15) + "px system-ui";
+      ctx.font = "bold " + Math.min(20, Math.max(10, cellW * 0.15)) + "px system-ui";
       ctx.fillStyle = "#fbbf24";
       ctx.textAlign = "center";
       ctx.fillText(c.conditions.join(", "), cx, cy + radius + cellH * 0.22);
@@ -712,10 +727,10 @@ function render() {
     // Name label
     if (showNames) {
       ctx.save();
-      var fontSize = Math.max(11, cellW * 0.22);
-      ctx.font = "600 " + fontSize + "px system-ui";
+      var fontSize = Math.min(28, Math.max(11, cellW * 0.22));
+      ctx.font = (isActive ? "700 " : "600 ") + fontSize + "px system-ui";
       ctx.textAlign = "center";
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = isActive ? "#4ade80" : "#fff";
       ctx.shadowColor = "rgba(0,0,0,0.7)";
       ctx.shadowBlur = 3;
       ctx.fillText(c.name, cx, cy - radius - 6);
@@ -748,7 +763,7 @@ function render() {
 
       // HP text
       ctx.save();
-      ctx.font = "600 " + Math.max(9, cellW * 0.14) + "px system-ui";
+      ctx.font = "600 " + Math.min(18, Math.max(9, cellW * 0.14)) + "px system-ui";
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.shadowColor = "rgba(0,0,0,0.8)";
@@ -820,7 +835,8 @@ function scheduleReconnect() {
 var animFrameId = null;
 function animLoop() {
   var hasAnim = state && state.effects && state.effects.some(function(e) { return e.animation; });
-  if (hasAnim) { render(); }
+  var hasActiveTurn = state && state.combat_started && state.active_creature_id;
+  if (hasAnim || hasActiveTurn) { render(); }
   animFrameId = requestAnimationFrame(animLoop);
 }
 

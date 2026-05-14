@@ -35,6 +35,7 @@ class TokenItem(QGraphicsPixmapItem):
         self._name_label = None
         self._condition_icons = []
         self._selection_ring = None
+        self._active_ring = None
 
         # Build overlays if creature is attached
         if creature:
@@ -200,6 +201,31 @@ class TokenItem(QGraphicsPixmapItem):
             self._update_selection_ring(value)
 
         return super().itemChange(change, value)
+
+    def set_active_turn(self, is_active):
+        """Highlight token with a green ring when it is this creature's turn."""
+        if is_active:
+            if not self._active_ring:
+                pw = self.pixmap().width()
+                ph = self.pixmap().height()
+                ring_size = max(pw, ph) * 1.18
+                offset_x = (pw - ring_size) / 2
+                offset_y = (ph - ring_size) / 2
+                self._active_ring = QGraphicsEllipseItem(
+                    offset_x, offset_y, ring_size, ring_size, self
+                )
+                pen = QPen(QColor("#4ade80"), 4)
+                self._active_ring.setPen(pen)
+                self._active_ring.setBrush(QBrush(Qt.NoBrush))
+                self._active_ring.setZValue(-1)
+            self._active_ring.setVisible(True)
+            if self._name_label:
+                self._name_label.setDefaultTextColor(QColor("#4ade80"))
+        else:
+            if self._active_ring:
+                self._active_ring.setVisible(False)
+            if self._name_label:
+                self._name_label.setDefaultTextColor(QColor(255, 255, 255))
 
     def _update_selection_ring(self, selected):
         if selected:
