@@ -6,6 +6,12 @@
             "scale": 1.0,
             "scan_data": {}
         },
+        "Swamp Trail - 44x32.jpg": {
+            "w": 44,
+            "h": 32,
+            "scale": 1.0,
+            "scan_data": {}
+        },
         "Witchs Herbgarden - 32x22.jpg": {
             "w": 20,
             "h": 20,
@@ -138,12 +144,6 @@
             "scale": 1.0,
             "scan_data": {}
         },
-        "Swamp Trail - 44x32.jpg": {
-            "w": 44,
-            "h": 32,
-            "scale": 1.0,
-            "scan_data": {}
-        },
         "Shattered Bridge - 22x16.jpg": {
             "w": 22,
             "h": 16,
@@ -256,7 +256,7 @@
     "tokens": {
         "Beholder.png": {
             "count": 1,
-            "size": 100,
+            "size": 46,
             "name": "Beholder",
             "hp": 10,
             "ac": 10,
@@ -354,7 +354,7 @@
                 0
             ],
             "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Beholder.png",
-            "token_scale": 1.0,
+            "token_scale": 0.82,
             "notes": "",
             "summoned_by": "",
             "summon_color": "",
@@ -437,8 +437,8 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                3,
-                2
+                16,
+                9
             ],
             "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Cultist.png",
             "token_scale": 1.0,
@@ -596,6 +596,5 @@
                 "failures": 0
             }
         }
-    ],
-    "effects": []
+    ]
 }

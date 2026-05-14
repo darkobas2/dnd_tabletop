@@ -327,6 +327,14 @@ class LauncherWindow(QWidget):
         self.token_rows = {}
         self.player_rows = {}
 
+        # Signatures of last successful rebuild for each tab — used to skip
+        # no-op rebuilds when the watchdog re-fires on our own config.json writes.
+        self._sig_folder_combo = None
+        self._sig_monster_lib = None
+        self._sig_map_lib = None
+        self._sig_player_sprites = None
+        self._sig_encounter = None
+
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
@@ -529,20 +537,23 @@ class LauncherWindow(QWidget):
     @Slot()
     def refresh_folders(self):
         if self._updating: return
-        self._updating = True
-        
-        current_folder = self.folder_combo.currentText().strip()
-        self.folder_combo.clear()
-        
+
         folders = sorted(self.scanner.folders.keys())
-        self.folder_combo.addItems(folders)
-        
-        if current_folder in self.scanner.folders:
-            self.folder_combo.setCurrentText(current_folder)
-        elif folders:
-            self.folder_combo.setCurrentIndex(0)
-        
-        self._updating = False
+        folders_sig = tuple(folders)
+        folders_changed = folders_sig != self._sig_folder_combo
+
+        if folders_changed:
+            self._updating = True
+            current_folder = self.folder_combo.currentText().strip()
+            self.folder_combo.clear()
+            self.folder_combo.addItems(folders)
+            if current_folder in self.scanner.folders:
+                self.folder_combo.setCurrentText(current_folder)
+            elif folders:
+                self.folder_combo.setCurrentIndex(0)
+            self._updating = False
+            self._sig_folder_combo = folders_sig
+
         self._rebuild_monster_library()
         self._rebuild_map_library()
         self._rebuild_player_sprites()
@@ -553,31 +564,14 @@ class LauncherWindow(QWidget):
     @Slot(int)
     def update_folder_selection(self, index):
         if self._updating or index < 0: return
-        self._updating = True
-        
+
         folder_name = self.folder_combo.currentText().strip()
         if not folder_name or folder_name not in self.scanner.folders:
-            self._updating = False
             return
-            
+
         folder_data = self.scanner.folders[folder_name]
-        
-        # 1. Clear & Update Map List
-        self.map_list.clear()
-        for m in folder_data.maps:
-            self.map_list.addItem(m.name)
-            
-        # 2. Clear Character List
-        while self.token_layout.count():
-            item = self.token_layout.takeAt(0)
-            w = item.widget() if item else None
-            if w:
-                w.setParent(None)
-                w.deleteLater()
-        
-        self.token_rows = {}
-        
-        # 3. Load character config
+
+        # Load saved tokens config to figure out which rows should be present
         config_path = os.path.join(folder_data.path, "config.json")
         saved_tokens = {}
         if os.path.exists(config_path):
@@ -586,9 +580,39 @@ class LauncherWindow(QWidget):
                     saved_tokens = json.load(f).get("tokens", {})
             except: pass
 
-        # 4. Restore tokens with count > 0 (from encounter folder or monster library)
-        encounter_token_names = set(t.name for t in folder_data.tokens)
-        # Combine encounter folder tokens + monster library tokens as lookup
+        map_names = tuple(m.name for m in folder_data.maps)
+        displayed_token_names = tuple(sorted(
+            n for n, c in saved_tokens.items() if c.get("count", 0) > 0
+        ))
+        sig = (folder_name, map_names, displayed_token_names)
+        if sig == self._sig_encounter:
+            # Nothing structurally changed — values inside live widgets are
+            # already up to date from user input. Skip the rebuild.
+            return
+
+        self._updating = True
+
+        # 1. Update Map List (preserve current selection when possible)
+        current_map = self.map_list.currentText()
+        self.map_list.blockSignals(True)
+        self.map_list.clear()
+        for m in folder_data.maps:
+            self.map_list.addItem(m.name)
+        if current_map and self.map_list.findText(current_map) >= 0:
+            self.map_list.setCurrentText(current_map)
+        self.map_list.blockSignals(False)
+
+        # 2. Clear Character List
+        while self.token_layout.count():
+            item = self.token_layout.takeAt(0)
+            w = item.widget() if item else None
+            if w:
+                w.setParent(None)
+                w.deleteLater()
+
+        self.token_rows = {}
+
+        # 3. Restore tokens with count > 0 (from encounter folder or monster library)
         all_tokens = {t.name: t for t in folder_data.tokens}
         for t in self.scanner.monster_tokens:
             if t.name not in all_tokens:
@@ -612,14 +636,17 @@ class LauncherWindow(QWidget):
                     self.token_rows[token] = row
 
         self._updating = False
+        self._sig_encounter = sig
 
-        # 5. Rebuild monster library grid and player sprites with per-encounter config
+        # 4. Rebuild monster library grid and player sprites with per-encounter config
         self._rebuild_monster_library()
         self._rebuild_player_sprites()
 
-        # 6. Trigger map config load for the first map
-        if self.map_list.count() > 0:
+        # 5. Trigger map config load if no map was previously selected
+        if self.map_list.count() > 0 and self.map_list.currentIndex() < 0:
             self.map_list.setCurrentIndex(0)
+        elif self.map_list.currentIndex() >= 0:
+            self.load_map_config(self.map_list.currentIndex())
 
     @Slot(int)
     def load_map_config(self, index):
@@ -651,6 +678,11 @@ class LauncherWindow(QWidget):
 
     def _rebuild_monster_library(self):
         """Rebuild the monster library as a searchable grid of clickable thumbnails."""
+        sig = tuple(t.path for t in self.scanner.monster_tokens)
+        if sig == self._sig_monster_lib:
+            return
+        self._sig_monster_lib = sig
+
         # Clear existing grid widgets
         for wrapper, _token in self._monster_grid_widgets:
             wrapper.setParent(None)
@@ -748,31 +780,37 @@ class LauncherWindow(QWidget):
 
     def _rebuild_map_library(self):
         """Build the map library grid from map_library/ folder."""
+        map_lib_path = os.path.join(self.scanner.base_path, "map_library")
+        # Collect all maps from subfolders (also computes the rebuild signature)
+        categories = set()
+        all_maps = []
+        if os.path.isdir(map_lib_path):
+            for category in sorted(os.listdir(map_lib_path)):
+                cat_path = os.path.join(map_lib_path, category)
+                if not os.path.isdir(cat_path):
+                    continue
+                categories.add(category)
+                for fname in sorted(os.listdir(cat_path)):
+                    if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        all_maps.append((category, fname, os.path.join(cat_path, fname)))
+
+        sig = (os.path.isdir(map_lib_path), tuple((c, p) for c, _f, p in all_maps))
+        if sig == self._sig_map_lib:
+            return
+        self._sig_map_lib = sig
+
         # Clear existing
         for wrapper, *_ in self._map_grid_widgets:
             wrapper.setParent(None)
             wrapper.deleteLater()
         self._map_grid_widgets = []
 
-        map_lib_path = os.path.join(self.scanner.base_path, "map_library")
         if not os.path.isdir(map_lib_path):
             placeholder = QLabel("<i>No map library. Create a map_library/ folder with subfolders.</i>")
             placeholder.setStyleSheet("color: #666; padding: 10px;")
             self.map_lib_grid.addWidget(placeholder, 0, 0)
             self._map_grid_widgets.append((placeholder, "", "", ""))
             return
-
-        # Collect all maps from subfolders
-        categories = set()
-        all_maps = []
-        for category in sorted(os.listdir(map_lib_path)):
-            cat_path = os.path.join(map_lib_path, category)
-            if not os.path.isdir(cat_path):
-                continue
-            categories.add(category)
-            for fname in sorted(os.listdir(cat_path)):
-                if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    all_maps.append((category, fname, os.path.join(cat_path, fname)))
 
         # Populate category filter
         self.map_category_combo.blockSignals(True)
@@ -884,6 +922,30 @@ class LauncherWindow(QWidget):
 
     def _rebuild_player_sprites(self):
         """Rebuild the Race/Class picker and active party from scanner."""
+        folder_name = self.folder_combo.currentText().strip()
+        sprite_paths = tuple(s.path for s in self.scanner.player_sprites)
+        summon_dir = os.path.join(self.scanner.base_path, "summon_tokens")
+        summon_paths = tuple(sorted(globfiles(os.path.join(summon_dir, "*.png")))) \
+            if os.path.isdir(summon_dir) else ()
+        # Active-party signature: the enabled sprite names from the folder's config.
+        active_sprites = ()
+        if folder_name and folder_name in self.scanner.folders:
+            folder_data = self.scanner.folders[folder_name]
+            config_path = os.path.join(folder_data.path, "config.json")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        saved = json.load(f).get("player_sprites", {})
+                    active_sprites = tuple(sorted(
+                        n for n, c in saved.items() if c.get("enabled", False)
+                    ))
+                except Exception:
+                    pass
+        sig = (folder_name, sprite_paths, summon_paths, active_sprites)
+        if sig == self._sig_player_sprites:
+            return
+        self._sig_player_sprites = sig
+
         # Clear existing party rows
         while self.player_layout.count():
             item = self.player_layout.takeAt(0)
@@ -894,12 +956,10 @@ class LauncherWindow(QWidget):
         self.player_rows = {}
 
         # Build familiar choices from summon_tokens/ folder
-        familiar_choices = []
-        summon_dir = os.path.join(self.scanner.base_path, "summon_tokens")
-        if os.path.isdir(summon_dir):
-            for png in sorted(globfiles(os.path.join(summon_dir, "*.png"))):
-                fname = os.path.splitext(os.path.basename(png))[0].replace('_', ' ')
-                familiar_choices.append((fname, png))
+        familiar_choices = [
+            (os.path.splitext(os.path.basename(p))[0].replace('_', ' '), p)
+            for p in summon_paths
+        ]
         PlayerSpriteRow.FAMILIAR_CHOICES = familiar_choices
 
         # Parse sprite filenames into race/class combos
