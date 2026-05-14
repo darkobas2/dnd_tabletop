@@ -79,11 +79,23 @@ class DNDScanner:
 
         for root, dirs, files in os.walk(folder_path):
             dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+            # Stems with a video file — sibling images are posters, not maps/tokens
+            video_stems_here = {
+                os.path.splitext(f)[0]
+                for f in files
+                if f.lower().endswith(('.mp4', '.webm'))
+            }
             for file_name in files:
                 file_path = os.path.join(root, file_name)
                 lower_name = file_name.lower()
-                
-                if lower_name.endswith(('.jpg', '.jpeg', '.png')):
+                stem = os.path.splitext(file_name)[0]
+
+                if lower_name.endswith('.poster.jpg'):
+                    continue
+                if lower_name.endswith(('.jpg', '.jpeg', '.png')) and stem in video_stems_here:
+                    continue
+
+                if lower_name.endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm')):
                     # Check if it's already in config
                     cfg = maps_config.get(file_name)
                     
@@ -100,7 +112,8 @@ class DNDScanner:
                     else:
                         # Try to detect if it's a map or token
                         match = re.search(r'(\d+)\s*x\s*(\d+)', file_name)
-                        is_map = match or any(x in lower_name for x in ["map", "ambush", "treetops", "floor", "room"])
+                        is_video = lower_name.endswith(('.mp4', '.webm'))
+                        is_map = is_video or match or any(x in lower_name for x in ["map", "ambush", "treetops", "floor", "room"])
 
                         if is_map:
                             if match:
@@ -170,7 +183,7 @@ class DNDWatchHandler(FileSystemEventHandler):
         path = event.src_path.lower()
         if event.is_directory:
             self._schedule_scan()
-        elif path.endswith(('.jpg', '.jpeg', '.png', '.json')):
+        elif path.endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm', '.json')):
             if '__pycache__' not in path and not os.path.basename(path).startswith('.'):
                 self._schedule_scan()
 

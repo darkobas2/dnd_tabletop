@@ -279,7 +279,7 @@ function hitTestToken(sx, sy) {
   // Returns the first draggable creature (player or summon) under screen coords
   if (!state) return null;
   var mp = screenToMap(sx, sy);
-  var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+  var mapW = state.map_width_px || mapNaturalW() || 800;
   var gridW = state.map_width_sq || 30;
   var cellW = mapW / gridW;
   var cellH = cellW;
@@ -313,7 +313,7 @@ canvas.addEventListener("mousemove", function(e) {
   if (dragToken) {
     // Move the dragged token to follow cursor
     var mp = screenToMap(e.clientX, e.clientY);
-    var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+    var mapW = state.map_width_px || mapNaturalW() || 800;
     var gridW = state.map_width_sq || 30;
     var cellW = mapW / gridW;
     var cellH = cellW;
@@ -396,7 +396,7 @@ canvas.addEventListener("touchmove", function(e) {
   e.preventDefault();
   if (e.touches.length === 1 && dragToken) {
     var mp = screenToMap(e.touches[0].clientX, e.touches[0].clientY);
-    var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
+    var mapW = state.map_width_px || mapNaturalW() || 800;
     var gridW = state.map_width_sq || 30;
     var cellW = mapW / gridW;
     var cellH = cellW;
@@ -434,22 +434,58 @@ function sendTokenMove(creatureId, gx, gy) {
   }
 }
 
-// ---- Map image loading ----
+// ---- Map image / video loading ----
+function mapNaturalW() {
+  if (!mapImg) return 0;
+  return mapImg.videoWidth || mapImg.naturalWidth || 0;
+}
+function mapNaturalH() {
+  if (!mapImg) return 0;
+  return mapImg.videoHeight || mapImg.naturalHeight || 0;
+}
+
 function loadMap() {
-  mapImg = new Image();
-  mapImg.onload = function() { mapLoaded = true; fitMap(); render(); };
-  mapImg.onerror = function() { mapLoaded = false; };
-  mapImg.src = "/map?" + Date.now();
+  // Clean up the previous map element if it was a <video> attached to the DOM
+  if (mapImg && mapImg.tagName === "VIDEO") {
+    try { mapImg.pause(); } catch (e) {}
+    if (mapImg.parentNode) mapImg.parentNode.removeChild(mapImg);
+  }
+  mapLoaded = false;
+  var isVideo = state && state.is_video_map;
+  if (isVideo) {
+    mapImg = document.createElement("video");
+    mapImg.muted = true;
+    mapImg.loop = true;
+    mapImg.autoplay = true;
+    mapImg.playsInline = true;
+    mapImg.crossOrigin = "anonymous";
+    mapImg.style.display = "none";
+    document.body.appendChild(mapImg);
+    mapImg.addEventListener("loadedmetadata", function() {
+      mapLoaded = true; fitMap(); render();
+    });
+    mapImg.addEventListener("error", function() { mapLoaded = false; });
+    mapImg.src = "/map?" + Date.now();
+    var p = mapImg.play();
+    if (p && p.catch) { p.catch(function() {}); }
+  } else {
+    mapImg = new Image();
+    mapImg.onload = function() { mapLoaded = true; fitMap(); render(); };
+    mapImg.onerror = function() { mapLoaded = false; };
+    mapImg.src = "/map?" + Date.now();
+  }
 }
 
 function fitMap() {
-  if (!mapImg || !mapLoaded || !state) return;
+  var nw = mapNaturalW();
+  var nh = mapNaturalH();
+  if (!mapImg || !mapLoaded || !state || !nw || !nh) return;
   var pad = 20;
-  var scaleX = (canvas.width - pad * 2) / mapImg.naturalWidth;
-  var scaleY = (canvas.height - pad * 2) / mapImg.naturalHeight;
+  var scaleX = (canvas.width - pad * 2) / nw;
+  var scaleY = (canvas.height - pad * 2) / nh;
   camZoom = Math.min(scaleX, scaleY, 1.5);
-  camX = (canvas.width - mapImg.naturalWidth * camZoom) / 2;
-  camY = (canvas.height - mapImg.naturalHeight * camZoom) / 2;
+  camX = (canvas.width - nw * camZoom) / 2;
+  camY = (canvas.height - nh * camZoom) / 2;
 }
 
 // ---- Token image cache ----
@@ -516,8 +552,8 @@ function render() {
   ctx.translate(camX, camY);
   ctx.scale(camZoom, camZoom);
 
-  var mapW = state.map_width_px || (mapImg ? mapImg.naturalWidth : 800);
-  var mapH = state.map_height_px || (mapImg ? mapImg.naturalHeight : 600);
+  var mapW = state.map_width_px || mapNaturalW() || 800;
+  var mapH = state.map_height_px || mapNaturalH() || 600;
   var gridW = state.map_width_sq || 30;
   var gridH = state.map_height_sq || 20;
   // Square cells based on width — matches DM view
@@ -836,7 +872,8 @@ var animFrameId = null;
 function animLoop() {
   var hasAnim = state && state.effects && state.effects.some(function(e) { return e.animation; });
   var hasActiveTurn = state && state.combat_started && state.active_creature_id;
-  if (hasAnim || hasActiveTurn) { render(); }
+  var isVideoMap = state && state.is_video_map && mapLoaded;
+  if (hasAnim || hasActiveTurn || isVideoMap) { render(); }
   animFrameId = requestAnimationFrame(animLoop);
 }
 
@@ -1000,12 +1037,14 @@ class PlayerViewServer:
                 self._map_image_width = 0
                 self._map_image_height = 0
                 if map_path and os.path.isfile(map_path):
-                    try:
-                        from PIL import Image
-                        with Image.open(map_path) as img:
-                            self._map_image_width, self._map_image_height = img.size
-                    except Exception:
-                        pass
+                    is_video = map_path.lower().endswith(('.mp4', '.webm'))
+                    if not is_video:
+                        try:
+                            from PIL import Image
+                            with Image.open(map_path) as img:
+                                self._map_image_width, self._map_image_height = img.size
+                        except Exception:
+                            pass
             self._map_width = width_sq
             self._map_height = height_sq
 
@@ -1077,6 +1116,7 @@ class PlayerViewServer:
             map_h = self._map_height
             img_w = self._map_image_width
             img_h = self._map_image_height
+            map_path = self._map_path or ""
 
         result: Dict[str, Any] = {
             "type": "state",
@@ -1084,6 +1124,7 @@ class PlayerViewServer:
             "map_height_sq": map_h,
             "map_width_px": img_w,
             "map_height_px": img_h,
+            "is_video_map": map_path.lower().endswith(('.mp4', '.webm')),
             "creatures": [],
             "effects": [],
             "initiative_order": [],

@@ -14,6 +14,10 @@ from viewer.effect_item import EffectItem, PlaceEffectDialog
 from viewer.pixmap_cache import get_pixmap
 
 
+def _is_video_map(path):
+    return bool(path) and path.lower().endswith(('.mp4', '.webm'))
+
+
 class MapViewer(QMainWindow):
     """Full-featured 2D map viewer with dockable combat panels."""
 
@@ -716,18 +720,34 @@ class _MapGraphicsView(QGraphicsView):
         self.encounter = encounter
         self.token_items = []
 
-        self.base_pixmap = get_pixmap(map_path)
-        if map_scale == 1.0:
-            self.map_pixmap = self.base_pixmap
-        else:
-            self.map_pixmap = self.base_pixmap.scaled(
-                int(self.base_pixmap.width() * map_scale),
-                int(self.base_pixmap.height() * map_scale),
-                Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
+        self.is_video_map = _is_video_map(map_path)
+        self._video_player = None
+        self._video_audio = None
+        self._video_item = None
 
-        self.map_item = self._scene.addPixmap(self.map_pixmap)
-        self.map_item.setZValue(-10)  # Below everything (effects, tokens, grid)
+        if self.is_video_map:
+            # Use grid_w x grid_h * default cell size for initial scene
+            # dimensions; refined once the video metadata loads.
+            cell_px = 64
+            scene_w = width_sq * cell_px
+            scene_h = height_sq * cell_px
+            self.base_pixmap = QPixmap(scene_w, scene_h)
+            self.base_pixmap.fill(QColor("#0a0a14"))
+            self.map_pixmap = self.base_pixmap
+            self._init_video_map(map_path, scene_w, scene_h)
+        else:
+            self.base_pixmap = get_pixmap(map_path)
+            if map_scale == 1.0:
+                self.map_pixmap = self.base_pixmap
+            else:
+                self.map_pixmap = self.base_pixmap.scaled(
+                    int(self.base_pixmap.width() * map_scale),
+                    int(self.base_pixmap.height() * map_scale),
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            self.map_item = self._scene.addPixmap(self.map_pixmap)
+            self.map_item.setZValue(-10)  # Below everything (effects, tokens, grid)
+
         self._scene.setSceneRect(QRectF(self.map_pixmap.rect()))
 
         self.width_sq = width_sq
@@ -827,6 +847,95 @@ class _MapGraphicsView(QGraphicsView):
         # Auto-save
         if self.parent_viewer:
             self.parent_viewer.schedule_save()
+
+    def _init_video_map(self, map_path, scene_w, scene_h):
+        """Set up QMediaPlayer + QGraphicsVideoItem for a video map. Loops muted."""
+        try:
+            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+            from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
+            from PySide6.QtCore import QUrl, QSizeF
+        except ImportError:
+            # Multimedia not available — fall back to dark placeholder
+            self.map_item = self._scene.addPixmap(self.map_pixmap)
+            self.map_item.setZValue(-10)
+            return
+
+        self._video_item = QGraphicsVideoItem()
+        self._video_item.setSize(QSizeF(scene_w, scene_h))
+        self._video_item.setZValue(-10)
+        # Resize scene + grid as soon as the real video dimensions are known
+        self._video_item.nativeSizeChanged.connect(self._on_video_native_size)
+        self._scene.addItem(self._video_item)
+        self.map_item = self._video_item
+
+        self._video_player = QMediaPlayer()
+        self._video_audio = QAudioOutput()
+        self._video_audio.setMuted(True)
+        self._video_player.setAudioOutput(self._video_audio)
+        self._video_player.setVideoOutput(self._video_item)
+        # Native infinite loop when supported (Qt 6.4+)
+        if hasattr(self._video_player, "setLoops"):
+            self._video_player.setLoops(QMediaPlayer.Loops.Infinite)
+        self._video_player.mediaStatusChanged.connect(self._on_video_status)
+        self._video_player.setSource(QUrl.fromLocalFile(os.path.abspath(map_path)))
+        self._video_player.play()
+
+    def _on_video_status(self, status):
+        from PySide6.QtMultimedia import QMediaPlayer
+        # Manual loop fallback for older Qt versions
+        if status == QMediaPlayer.MediaStatus.EndOfMedia and self._video_player:
+            self._video_player.setPosition(0)
+            self._video_player.play()
+
+    def _on_video_native_size(self, size):
+        """Match scene size to the real video resolution so the grid aligns to
+        the visible video edges (no letterboxing, no oversized cells)."""
+        from PySide6.QtCore import QSizeF
+        vw, vh = size.width(), size.height()
+        if vw <= 0 or vh <= 0:
+            return
+        # Scene now matches the video pixel-for-pixel
+        self._video_item.setSize(QSizeF(vw, vh))
+        new_pm = QPixmap(int(vw), int(vh))
+        new_pm.fill(QColor("#0a0a14"))
+        self.base_pixmap = new_pm
+        self.map_pixmap = new_pm
+        self._scene.setSceneRect(QRectF(0, 0, vw, vh))
+        # Grid keeps square cells sized to fit horizontally; vertical lines fill
+        # the actual video height. If the user's grid_h doesn't match the
+        # video aspect they'll just see a few extra/fewer rows of cells.
+        new_grid_size = vw / self.width_sq if self.width_sq else 64
+        self.grid_size = new_grid_size
+        for item in self.grid_items:
+            self._scene.removeItem(item)
+        self.grid_items.clear()
+        self._draw_grid()
+
+        # Repropagate the new grid_size to every token and effect, and
+        # reposition + rescale them. Otherwise tokens placed before the video
+        # loaded would still be snapped to the old (placeholder) grid spacing.
+        for token in self.token_items:
+            token.grid_size = new_grid_size
+            pw = token.pixmap().width()
+            ph = token.pixmap().height()
+            if pw and ph:
+                base_size = new_grid_size * 0.8
+                initial_scale = base_size / max(pw, ph)
+                token_scale = token.creature.token_scale if token.creature else 1.0
+                token.setScale(initial_scale * token_scale)
+            if token.creature:
+                gx, gy = token.creature.position
+                token.setPos(gx * new_grid_size, gy * new_grid_size)
+
+        effect_items = getattr(self.parent_viewer, "effect_items", None) or []
+        for ei in effect_items:
+            ei.grid_size = new_grid_size
+            if hasattr(ei, "effect") and ei.effect:
+                gx, gy = ei.effect.position
+                ei.setPos((gx + 0.5) * new_grid_size, (gy + 0.5) * new_grid_size)
+
+        if not self._user_zoomed:
+            self.fit_to_screen()
 
     def fit_to_screen(self):
         self._scene.setSceneRect(QRectF(self.map_pixmap.rect()))

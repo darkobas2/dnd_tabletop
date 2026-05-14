@@ -5,9 +5,9 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QListWidget, QSpinBox, QScrollArea,
                              QFormLayout, QSlider, QFrame, QGridLayout, QCheckBox,
                              QLineEdit, QInputDialog, QMessageBox, QTabWidget)
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize, QObject, QRunnable, QThreadPool
 from glob import glob as globfiles
-from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtGui import QPixmap, QIcon, QColor, QPainter, QFont, QPen, QBrush
 from scanner import DNDScanner, TokenData
 from core.name_utils import extract_creature_name
 from viewer.pixmap_cache import get_pixmap
@@ -241,6 +241,97 @@ _KNOWN_CLASSES = {
 }
 
 
+class _PosterSignaler(QObject):
+    """Bridge: QRunnable workers emit through this so the slot runs on the GUI thread."""
+    ready = Signal(str)  # video_path
+
+
+class _PosterWorker(QRunnable):
+    """Background ffmpeg poster extraction. Run on a QThreadPool."""
+
+    def __init__(self, video_path: str, signaler: "_PosterSignaler"):
+        super().__init__()
+        self.video_path = video_path
+        self.signaler = signaler
+
+    def run(self):
+        stem, _ = os.path.splitext(self.video_path)
+        _extract_video_poster(self.video_path, stem + ".poster.jpg")
+        # Always emit, even on failure — the slot will check disk and act accordingly
+        self.signaler.ready.emit(self.video_path)
+
+
+def _extract_video_poster(video_path: str, dest_path: str) -> bool:
+    """Use ffmpeg to grab a representative frame (around 1s in) for thumbnails.
+
+    Returns True iff a valid file was written at dest_path.
+    """
+    import subprocess
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+    try:
+        subprocess.run(
+            [ffmpeg, "-y", "-ss", "1", "-i", video_path,
+             "-frames:v", "1", "-update", "1", "-q:v", "3",
+             "-vf", "scale=560:-1", dest_path],
+            capture_output=True, timeout=15
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return os.path.isfile(dest_path) and os.path.getsize(dest_path) > 0
+
+
+def _video_thumbnail(video_path: str) -> QPixmap:
+    """Build a 140x100 thumbnail for a video map.
+
+    Synchronous only — uses what is on disk. If no poster exists, returns a
+    drawn placeholder. Callers can schedule async extraction via _PosterWorker
+    and later update the icon.
+    """
+    stem, _ = os.path.splitext(video_path)
+    for ext in (".jpg", ".jpeg", ".png", ".poster.jpg"):
+        candidate = stem + ext
+        if os.path.isfile(candidate):
+            pm = QPixmap(candidate)
+            if not pm.isNull():
+                return pm
+
+    pm = QPixmap(280, 200)
+    pm.fill(QColor("#1a1a2e"))
+    painter = QPainter(pm)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    # Subtle border
+    painter.setPen(QPen(QColor("#3a3a5e"), 2))
+    painter.setBrush(Qt.NoBrush)
+    painter.drawRoundedRect(2, 2, 276, 196, 6, 6)
+
+    # Play triangle
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QBrush(QColor("#fbbf24")))
+    cx, cy, r = 140, 90, 36
+    triangle = [
+        (cx - r // 2, cy - r),
+        (cx - r // 2, cy + r),
+        (cx + r, cy),
+    ]
+    from PySide6.QtGui import QPolygonF
+    from PySide6.QtCore import QPointF
+    painter.drawPolygon(QPolygonF([QPointF(x, y) for x, y in triangle]))
+
+    # "ANIMATED MAP" label
+    painter.setPen(QPen(QColor("#e0e0e0")))
+    f = QFont()
+    f.setBold(True)
+    f.setPointSize(11)
+    painter.setFont(f)
+    painter.drawText(0, 150, 280, 24, Qt.AlignCenter, "ANIMATED MAP")
+
+    painter.end()
+    return pm
+
+
 def _race_display_name(raw):
     """Convert internal race key to display name (e.g. HalfElf -> Half-Elf)."""
     return _RACE_DISPLAY.get(raw, raw)
@@ -334,6 +425,14 @@ class LauncherWindow(QWidget):
         self._sig_map_lib = None
         self._sig_player_sprites = None
         self._sig_encounter = None
+
+        # Background ffmpeg poster extraction (max 2 concurrent to avoid CPU thrash)
+        self._poster_pool = QThreadPool()
+        self._poster_pool.setMaxThreadCount(2)
+        self._poster_signaler = _PosterSignaler()
+        self._poster_signaler.ready.connect(self._on_poster_ready)
+        self._video_buttons = {}     # video_path -> QPushButton (current grid)
+        self._poster_in_flight = set()  # video_paths with a worker already queued
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -430,6 +529,15 @@ class LauncherWindow(QWidget):
         self.map_search.setPlaceholderText("Search maps...")
         self.map_search.textChanged.connect(self._filter_map_grid)
         map_filter_row.addWidget(self.map_search, 1)
+
+        self.veo_prompt_btn = QPushButton("Veo Prompt Builder")
+        self.veo_prompt_btn.setToolTip("Generate a Veo 3 prompt for an animated VTT map")
+        self.veo_prompt_btn.setStyleSheet(
+            "QPushButton { background: #8e44ad; color: white; font-weight: bold; padding: 4px 12px; border-radius: 4px; }"
+            "QPushButton:hover { background: #9b59b6; }"
+        )
+        self.veo_prompt_btn.clicked.connect(self._open_veo_prompt_builder)
+        map_filter_row.addWidget(self.veo_prompt_btn)
         map_layout.addLayout(map_filter_row)
 
         map_layout.addWidget(QLabel("Click a map to use it for the current encounter:"))
@@ -790,9 +898,25 @@ class LauncherWindow(QWidget):
                 if not os.path.isdir(cat_path):
                     continue
                 categories.add(category)
-                for fname in sorted(os.listdir(cat_path)):
-                    if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        all_maps.append((category, fname, os.path.join(cat_path, fname)))
+                entries = sorted(os.listdir(cat_path))
+                # Stems that have a corresponding video file — their .jpg/.png
+                # siblings are posters, not standalone maps.
+                video_stems = {
+                    os.path.splitext(f)[0]
+                    for f in entries
+                    if f.lower().endswith(('.mp4', '.webm'))
+                }
+                for fname in entries:
+                    lower = fname.lower()
+                    if not lower.endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm')):
+                        continue
+                    if lower.endswith('.poster.jpg'):
+                        continue
+                    stem = os.path.splitext(fname)[0]
+                    is_image = lower.endswith(('.jpg', '.jpeg', '.png'))
+                    if is_image and stem in video_stems:
+                        continue
+                    all_maps.append((category, fname, os.path.join(cat_path, fname)))
 
         sig = (os.path.isdir(map_lib_path), tuple((c, p) for c, _f, p in all_maps))
         if sig == self._sig_map_lib:
@@ -804,6 +928,7 @@ class LauncherWindow(QWidget):
             wrapper.setParent(None)
             wrapper.deleteLater()
         self._map_grid_widgets = []
+        self._video_buttons.clear()
 
         if not os.path.isdir(map_lib_path):
             placeholder = QLabel("<i>No map library. Create a map_library/ folder with subfolders.</i>")
@@ -824,7 +949,7 @@ class LauncherWindow(QWidget):
         self.map_category_combo.blockSignals(False)
 
         if not all_maps:
-            placeholder = QLabel("<i>No maps found. Add JPG/PNG files to map_library/ subfolders.</i>")
+            placeholder = QLabel("<i>No maps found. Add JPG/PNG/MP4/WEBM files to map_library/ subfolders.</i>")
             placeholder.setStyleSheet("color: #666; padding: 10px;")
             self.map_lib_grid.addWidget(placeholder, 0, 0)
             self._map_grid_widgets.append((placeholder, "", "", ""))
@@ -839,10 +964,29 @@ class LauncherWindow(QWidget):
             wl.setAlignment(Qt.AlignCenter)
 
             btn = QPushButton()
-            pix = get_pixmap(full_path)
-            if not pix.isNull():
-                btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
-                btn.setIconSize(QSize(140, 100))
+            is_video = fname.lower().endswith(('.mp4', '.webm'))
+            if is_video:
+                pix = _video_thumbnail(full_path)
+                if not pix.isNull():
+                    btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+                    btn.setIconSize(QSize(140, 100))
+                self._video_buttons[full_path] = btn
+                # Schedule background poster extraction if nothing usable is on disk
+                stem = os.path.splitext(full_path)[0]
+                has_poster = any(
+                    os.path.isfile(stem + e)
+                    for e in (".jpg", ".jpeg", ".png", ".poster.jpg")
+                )
+                if not has_poster and full_path not in self._poster_in_flight:
+                    self._poster_in_flight.add(full_path)
+                    self._poster_pool.start(
+                        _PosterWorker(full_path, self._poster_signaler)
+                    )
+            else:
+                pix = get_pixmap(full_path)
+                if not pix.isNull():
+                    btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+                    btn.setIconSize(QSize(140, 100))
             btn.setFixedSize(148, 108)
             btn.setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 4px; } QPushButton:hover { border: 2px solid #2980b9; background: #2c3e50; }")
             display_name = os.path.splitext(fname)[0]
@@ -860,6 +1004,32 @@ class LauncherWindow(QWidget):
 
             self.map_lib_grid.addWidget(wrapper, i // cols, i % cols)
             self._map_grid_widgets.append((wrapper, category, display_name.lower(), full_path))
+
+    def _open_veo_prompt_builder(self):
+        try:
+            from ui.widgets.veo_map_prompt_dialog import VeoMapPromptDialog
+        except ImportError as e:
+            QMessageBox.warning(self, "Unavailable", f"Could not load prompt builder: {e}")
+            return
+        dialog = VeoMapPromptDialog(self, save_dir="map_library/_prompts")
+        dialog.exec()
+
+    @Slot(str)
+    def _on_poster_ready(self, video_path: str):
+        """Background poster extraction finished — update the matching button icon if still present."""
+        self._poster_in_flight.discard(video_path)
+        btn = self._video_buttons.get(video_path)
+        if btn is None:
+            return  # Grid was rebuilt while extraction was running — disk cache will be used next time
+        stem = os.path.splitext(video_path)[0]
+        poster_path = stem + ".poster.jpg"
+        if not os.path.isfile(poster_path):
+            return  # extraction failed; keep the placeholder
+        pix = QPixmap(poster_path)
+        if pix.isNull():
+            return
+        btn.setIcon(QIcon(pix.scaled(140, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        btn.setIconSize(QSize(140, 100))
 
     def _filter_map_grid(self, *args):
         """Filter map grid by category and search text."""
