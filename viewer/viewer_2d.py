@@ -5,7 +5,8 @@ import json
 
 from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QMainWindow,
                                 QDockWidget, QMenu, QInputDialog, QSplitter,
-                                QWidget, QVBoxLayout, QMenuBar, QLabel)
+                                QWidget, QVBoxLayout, QMenuBar, QLabel,
+                                QGraphicsItem)
 from PySide6.QtGui import QPixmap, QColor, QPen, QBrush, QKeyEvent, QPainter, QAction
 from PySide6.QtCore import Qt, QPointF, QRectF, QTimer, Signal
 
@@ -108,6 +109,10 @@ class MapViewer(QMainWindow):
         grid_action = QAction("Toggle Grid (G)", self)
         grid_action.triggered.connect(self.view.toggle_grid)
         view_menu.addAction(grid_action)
+
+        self._walls_action = QAction("Paint Walls (W)", self, checkable=True)
+        self._walls_action.toggled.connect(self.view.set_walls_mode)
+        view_menu.addAction(self._walls_action)
 
         fullscreen_action = QAction("Toggle Fullscreen (F)", self)
         fullscreen_action.triggered.connect(self._toggle_fullscreen)
@@ -676,6 +681,11 @@ class MapViewer(QMainWindow):
             # Save creature list and effects
             cfg["creatures"] = [c.to_dict() for c in self.encounter.creatures]
             cfg["effects"] = [e.to_dict() for e in self.encounter.effects]
+            pending_walls = getattr(self, "_pending_walls", None)
+            if pending_walls is not None:
+                cfg["walls"] = pending_walls
+            elif hasattr(self.view, "walls"):
+                cfg["walls"] = sorted([list(w) for w in self.view.walls])
             with open(config_path, 'w') as f:
                 json.dump(cfg, f, indent=4)
         except Exception as e:
@@ -757,6 +767,13 @@ class _MapGraphicsView(QGraphicsView):
         self.grid_visible = True
         self.grid_items = []
         self._draw_grid()
+
+        # Wall painting + pathfinding
+        self.walls = set()           # set of (gx, gy) blocked cells
+        self.wall_items = {}         # (gx, gy) -> QGraphicsRectItem
+        self.walls_mode = False      # while True, left-click toggles walls instead of dragging tokens
+        self._load_walls()
+        self._redraw_walls()
 
         # Add tokens, merging with any saved creature data
         self._saved_creatures = saved_creatures or []
@@ -927,6 +944,10 @@ class _MapGraphicsView(QGraphicsView):
                 gx, gy = token.creature.position
                 token.setPos(gx * new_grid_size, gy * new_grid_size)
 
+        # Walls were rendered with the placeholder grid_size — redraw at the new size
+        if hasattr(self, "wall_items"):
+            self._redraw_walls()
+
         effect_items = getattr(self.parent_viewer, "effect_items", None) or []
         for ei in effect_items:
             ei.grid_size = new_grid_size
@@ -974,9 +995,121 @@ class _MapGraphicsView(QGraphicsView):
         for item in self.grid_items:
             item.setVisible(self.grid_visible)
 
+    # ---- Walls + pathfinding ----
+
+    def _load_walls(self):
+        """Read walls from the encounter's config.json if present."""
+        if not self.parent_viewer or not getattr(self.parent_viewer, "folder_path", None):
+            return
+        path = os.path.join(self.parent_viewer.folder_path, "config.json")
+        if not os.path.isfile(path):
+            return
+        try:
+            with open(path, "r") as f:
+                cfg = json.load(f)
+            for entry in cfg.get("walls", []):
+                if isinstance(entry, list) and len(entry) == 2:
+                    self.walls.add((int(entry[0]), int(entry[1])))
+        except Exception:
+            pass
+
+    def _save_walls(self):
+        if not self.parent_viewer:
+            return
+        # Stash on parent so its existing _save_creatures can pick it up
+        self.parent_viewer._pending_walls = sorted([list(w) for w in self.walls])
+        self.parent_viewer.schedule_save()
+
+    def _redraw_walls(self):
+        for item in self.wall_items.values():
+            self._scene.removeItem(item)
+        self.wall_items.clear()
+        fill = QColor("#ef4444"); fill.setAlpha(110)
+        edge = QColor("#7f1d1d"); edge.setAlpha(180)
+        pen = QPen(edge, 1)
+        brush = QBrush(fill)
+        gs = self.grid_size
+        for (gx, gy) in self.walls:
+            rect = self._scene.addRect(gx * gs, gy * gs, gs, gs, pen, brush)
+            rect.setZValue(-2)  # below tokens and movement-range overlay
+            self.wall_items[(gx, gy)] = rect
+
+    def set_walls_mode(self, enabled: bool):
+        self.walls_mode = bool(enabled)
+        # Disable token dragging so clicks reliably hit the scene background
+        for t in self.token_items:
+            t.setFlag(QGraphicsItem.ItemIsMovable, not self.walls_mode)
+        self.setCursor(Qt.PointingHandCursor if self.walls_mode else Qt.ArrowCursor)
+
+    def toggle_wall(self, gx: int, gy: int):
+        if (gx, gy) in self.walls:
+            self.walls.remove((gx, gy))
+            item = self.wall_items.pop((gx, gy), None)
+            if item:
+                self._scene.removeItem(item)
+        else:
+            self.walls.add((gx, gy))
+            fill = QColor("#ef4444"); fill.setAlpha(110)
+            edge = QColor("#7f1d1d"); edge.setAlpha(180)
+            gs = self.grid_size
+            rect = self._scene.addRect(gx * gs, gy * gs, gs, gs, QPen(edge, 1), QBrush(fill))
+            rect.setZValue(-2)
+            self.wall_items[(gx, gy)] = rect
+        self._save_walls()
+
+    def reachable_cells(self, start, max_cost):
+        """Dijkstra reachability from `start` respecting `self.walls`.
+
+        Diagonal step costs 1.5, straight step costs 1.0 — matches the D&D 5e
+        variant diagonal rule on average and is path-aware so walls force
+        detours through more squares.
+
+        Returns: dict {(gx, gy): cost}. Excludes the start cell itself.
+        """
+        import heapq
+        if max_cost <= 0:
+            return {}
+        sx, sy = start
+        dist = {(sx, sy): 0.0}
+        pq = [(0.0, sx, sy)]
+        # Map bounds — fall back to a generous window if unknown
+        max_x = max(self.width_sq, 1)
+        max_y = max(self.height_sq, 1)
+        if self.is_video_map and self.grid_size > 0:
+            max_x = int(self._scene.sceneRect().width() / self.grid_size)
+            max_y = int(self._scene.sceneRect().height() / self.grid_size)
+        while pq:
+            d, x, y = heapq.heappop(pq)
+            if d > dist.get((x, y), float("inf")):
+                continue
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    nx, ny = x + dx, y + dy
+                    if nx < 0 or ny < 0 or nx >= max_x or ny >= max_y:
+                        continue
+                    if (nx, ny) in self.walls:
+                        continue
+                    step = 1.5 if (dx and dy) else 1.0
+                    nd = d + step
+                    if nd > max_cost + 0.01:
+                        continue
+                    if nd < dist.get((nx, ny), float("inf")):
+                        dist[(nx, ny)] = nd
+                        heapq.heappush(pq, (nd, nx, ny))
+        dist.pop((sx, sy), None)
+        return dist
+
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_G:
             self.toggle_grid()
+        elif event.key() == Qt.Key_W:
+            self.set_walls_mode(not self.walls_mode)
+            # Sync the checkable menu action if present
+            wa = getattr(self.parent_viewer, "_walls_action", None)
+            if wa is not None:
+                wa.blockSignals(True); wa.setChecked(self.walls_mode); wa.blockSignals(False)
         elif event.key() == Qt.Key_Escape:
             window = self.window()
             if window:
@@ -1010,6 +1143,14 @@ class _MapGraphicsView(QGraphicsView):
             self.scale(zoom_out_factor, zoom_out_factor)
 
     def mousePressEvent(self, event):
+        # Walls mode: left-click paints walls on grid cells.
+        if self.walls_mode and event.button() == Qt.LeftButton and self.grid_size > 0:
+            scene_pos = self.mapToScene(event.pos())
+            gx = int(scene_pos.x() / self.grid_size)
+            gy = int(scene_pos.y() / self.grid_size)
+            self.toggle_wall(gx, gy)
+            event.accept()
+            return
         # Any drag-pan with the empty-space hand counts as user-controlled view.
         if event.button() == Qt.LeftButton and not self.itemAt(event.pos()):
             self._user_zoomed = True

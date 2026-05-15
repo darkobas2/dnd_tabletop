@@ -391,8 +391,8 @@
             "is_player": false,
             "size_category": "Medium",
             "position": [
-                3,
-                11
+                12,
+                7
             ],
             "token_path": "/home/darkobas/Pictures/DND/monster_tokens/Giant_Rat.png",
             "token_scale": 1.72,
@@ -507,8 +507,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                11,
-                20
+                8,
+                23
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Aasimar_Cleric.png",
             "token_scale": 1.53,
@@ -565,8 +565,8 @@
             "is_player": true,
             "size_category": "Medium",
             "position": [
-                8,
-                7
+                5,
+                3
             ],
             "token_path": "/home/darkobas/Pictures/DND/player_sprites/Elf_Cleric2.png",
             "token_scale": 1.37,
@@ -609,5 +609,6 @@
             }
         }
     ],
-    "effects": []
+    "effects": [],
+    "walls": []
 }
