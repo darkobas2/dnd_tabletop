@@ -36,6 +36,8 @@ class TokenItem(QGraphicsPixmapItem):
         self._condition_icons = []
         self._selection_ring = None
         self._active_ring = None
+        self._range_tiles = []  # QGraphicsRectItem highlights, shown while dragging
+        self._drag_origin = None  # (gx, gy) cell at the moment the user grabbed the token
 
         # Build overlays if creature is attached
         if creature:
@@ -177,30 +179,67 @@ class TokenItem(QGraphicsPixmapItem):
             new_pos = value
             sw = self.pixmap().width() * self.scale()
             sh = self.pixmap().height() * self.scale()
-
-            # Snap: find the grid cell the center of the token falls in
             center_x = new_pos.x() + sw / 2
             center_y = new_pos.y() + sh / 2
-            grid_col = int(center_x / self.grid_size) if center_x >= 0 else int(center_x / self.grid_size) - 1
-            grid_row = int(center_y / self.grid_size) if center_y >= 0 else int(center_y / self.grid_size) - 1
+            if self.grid_size > 0 and self.creature:
+                if center_x >= 0:
+                    grid_col = int(center_x / self.grid_size)
+                else:
+                    grid_col = int(center_x / self.grid_size) - 1
+                if center_y >= 0:
+                    grid_row = int(center_y / self.grid_size)
+                else:
+                    grid_row = int(center_y / self.grid_size) - 1
 
-            # Position so token is centered in the grid cell
-            gx = grid_col * self.grid_size + self.grid_size / 2 - sw / 2
-            gy = grid_row * self.grid_size + self.grid_size / 2 - sh / 2
+                # While the user is actively dragging, refuse to leave the
+                # creature's movement range. Snap visual position to the
+                # nearest in-range cell center if they try.
+                if self._drag_origin is not None:
+                    clamped = self._clamp_cell_to_range(grid_col, grid_row)
+                    if clamped != (grid_col, grid_row):
+                        grid_col, grid_row = clamped
+                        gs = self.grid_size
+                        self.creature.position = (grid_col, grid_row)
+                        return QPointF(
+                            grid_col * gs + gs / 2 - sw / 2,
+                            grid_row * gs + gs / 2 - sh / 2,
+                        )
 
-            # Update creature position in grid coords
-            if self.creature:
                 old_pos = self.creature.position
                 self.creature.position = (grid_col, grid_row)
                 if old_pos != (grid_col, grid_row):
                     self._trigger_save()
-
-            return QPointF(gx, gy)
+            # Free placement otherwise — return value unchanged
 
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self._update_selection_ring(value)
 
         return super().itemChange(change, value)
+
+    @staticmethod
+    def _diag_variant_cost(dx, dy):
+        """D&D 5e variant diagonal cost between two cells offset by (dx, dy)."""
+        adx, ady = abs(dx), abs(dy)
+        return max(adx, ady) + (min(adx, ady) // 2)
+
+    def _clamp_cell_to_range(self, target_gx, target_gy):
+        """Walk target cell back toward _drag_origin until within range."""
+        if self._drag_origin is None:
+            return target_gx, target_gy
+        n = self._movement_squares()
+        ox, oy = self._drag_origin
+        if n <= 0:
+            return (ox, oy)
+        dx, dy = target_gx - ox, target_gy - oy
+        while self._diag_variant_cost(dx, dy) > n:
+            adx, ady = abs(dx), abs(dy)
+            if adx >= ady and adx > 0:
+                dx -= 1 if dx > 0 else -1
+            if ady >= adx and ady > 0:
+                dy -= 1 if dy > 0 else -1
+            if dx == 0 and dy == 0:
+                break
+        return (ox + dx, oy + dy)
 
     def set_active_turn(self, is_active):
         """Highlight token with a green ring when it is this creature's turn."""
@@ -356,6 +395,84 @@ class TokenItem(QGraphicsPixmapItem):
                     self.viewer.combat_log.log_condition(self.creature.name, cond_name, True)
             self.update_visuals()
             self._trigger_save()
+
+    # ---- Movement range visualization ----
+
+    def _movement_squares(self):
+        """Number of grid squares this creature can travel this turn.
+
+        5e convention: 5ft per square, default speed 30ft → 6 squares.
+        """
+        if not self.creature:
+            return 0
+        speed = getattr(self.creature, "speed", 30) or 0
+        return max(0, int(speed // 5))
+
+    def _show_movement_range(self):
+        """Highlight cells reachable this turn.
+
+        Distance uses the D&D 5e *variant* diagonal cost: every other diagonal
+        step costs 2 squares. This produces an octagonal reach shape rather
+        than a giant square, which scales sensibly even at high speeds.
+        Tiles are clipped to the actual map bounds so a fast creature near
+        the edge does not overflow into empty space.
+        """
+        self._hide_movement_range()
+        if not self.creature or self.grid_size <= 0:
+            return
+        n = self._movement_squares()
+        if n <= 0:
+            return
+        gx, gy = self.creature.position
+        self._drag_origin = (gx, gy)
+        scene = self.scene()
+        if scene is None:
+            return
+
+        gs = self.grid_size
+        rect = scene.sceneRect()
+        min_cx = int(rect.left() / gs)
+        max_cx = int(rect.right() / gs) - 1
+        min_cy = int(rect.top() / gs)
+        max_cy = int(rect.bottom() / gs) - 1
+
+        fill = QColor("#4ade80"); fill.setAlpha(55)
+        edge = QColor("#4ade80"); edge.setAlpha(140)
+        pen = QPen(edge, 1)
+        brush = QBrush(fill)
+
+        for dx in range(-n, n + 1):
+            for dy in range(-n, n + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                adx, ady = abs(dx), abs(dy)
+                # 5e variant: cost = straight steps + diagonals + extra-cost-for-every-second-diagonal
+                cost = max(adx, ady) + (min(adx, ady) // 2)
+                if cost > n:
+                    continue
+                cx, cy = gx + dx, gy + dy
+                if cx < min_cx or cx > max_cx or cy < min_cy or cy > max_cy:
+                    continue
+                tile = scene.addRect(cx * gs, cy * gs, gs, gs, pen, brush)
+                tile.setZValue(-1)
+                self._range_tiles.append(tile)
+
+    def _hide_movement_range(self):
+        scene = self.scene()
+        for r in self._range_tiles:
+            if scene:
+                scene.removeItem(r)
+        self._range_tiles.clear()
+        self._drag_origin = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._show_movement_range()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._hide_movement_range()
+        super().mouseReleaseEvent(event)
 
     def hoverEnterEvent(self, event):
         if self.creature:
